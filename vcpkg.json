@@ -1,4 +1,6 @@
 {
+  "name": "hush-engine",
+  "version": "0.1.0",
   "dependencies": [
     "fmt",
     "magic-enum",
@@ -11,6 +13,7 @@
     "volk",
     "vulkan",
     "glm",
+    "outcome"
     "fastgltf"
   ]
 }
