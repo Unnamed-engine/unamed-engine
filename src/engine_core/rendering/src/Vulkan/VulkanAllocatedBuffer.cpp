@@ -1,10 +1,13 @@
-#include "VulkanVertexBuffer.hpp"
+#include "VulkanAllocatedBuffer.hpp"
 #include "VkTypes.hpp"
+#include "vk_mem_alloc.hpp"
 
-Hush::VulkanVertexBuffer::VulkanVertexBuffer(uint32_t size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocator allocator)
+Hush::VulkanAllocatedBuffer::VulkanAllocatedBuffer(uint32_t size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocator allocator)
 {
     // allocate buffer
     VkBufferCreateInfo bufferInfo = {};
+    this->m_size = size;
+    this->m_capacity = size;
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.pNext = nullptr;
     bufferInfo.size = size;
@@ -21,7 +24,22 @@ Hush::VulkanVertexBuffer::VulkanVertexBuffer(uint32_t size, VkBufferUsageFlags u
                    "Vertex buffer allocation failed!");
 }
 
-uint32_t Hush::VulkanVertexBuffer::GetSize() const noexcept
+void Hush::VulkanAllocatedBuffer::Dispose(VmaAllocator allocator)
+{
+    vmaDestroyBuffer(allocator, this->m_buffer, this->m_allocation);
+}
+
+uint32_t Hush::VulkanAllocatedBuffer::GetSize() const noexcept
 {
     return this->m_size;
+}
+
+VmaAllocation Hush::VulkanAllocatedBuffer::GetAllocation()
+{
+    return this->m_allocation;
+}
+
+VkBuffer Hush::VulkanAllocatedBuffer::GetBuffer()
+{
+    return this->m_buffer;
 }

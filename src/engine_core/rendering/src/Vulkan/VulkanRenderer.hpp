@@ -21,6 +21,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 #include "VkDescriptors.hpp"
+#include "GPUMeshBuffers.hpp"
 
 ///@brief Double frame buffering, allows for the GPU and CPU to work in parallel. NOTE: increase to 3 if experiencing
 /// jittery framerates
@@ -114,6 +115,10 @@ namespace Hush
 
         void InitBackgroundPipelines() noexcept;
 
+        void InitMeshPipeline() noexcept;
+
+        void InitDefaultData() noexcept;
+
         void DrawGeometry(VkCommandBuffer cmd);
 
         void DrawBackground(VkCommandBuffer cmd) noexcept;
@@ -126,6 +131,8 @@ namespace Hush
 
         void InitTrianglePipeline();
 
+		GPUMeshBuffers UploadMesh(const std::vector<uint32_t>& indices, const std::vector<Vertex>& vertices);
+		
         void *m_windowContext;
         // TODO: Send all of these to a custom struct holding the pointers
         VkInstance m_vulkanInstance = nullptr;
@@ -144,6 +151,10 @@ namespace Hush
         VkPipelineLayout m_gradientPipelineLayout = nullptr;
 		VkPipelineLayout m_trianglePipelineLayout = nullptr;
 		VkPipeline m_trianglePipeline = nullptr;
+		VkPipelineLayout m_meshPipelineLayout = nullptr;
+		VkPipeline m_meshPipeline = nullptr;
+
+		GPUMeshBuffers m_rectangle;
 
         uint32_t m_graphicsQueueFamily = 0u;
         DescriptorAllocator m_globalDescriptorAllocator{};

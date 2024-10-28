@@ -9,19 +9,34 @@
 #include <vulkan/vulkan.h>
 #include <magic_enum.hpp>
 #include <glm/vec4.hpp>
+#include <glm/mat4x4.hpp>
 
 
 // Stuff from vk_mem_alloc to avoid cyclical references
 struct VmaAllocation_T;
 using VmaAllocation = VmaAllocation_T *;
 
+struct Vertex {
+	glm::vec3 position;
+	float uv_x;
+	glm::vec3 normal;
+	float uv_y;
+	glm::vec4 color;
+};
+
+// push constants for our mesh object draws
+struct GPUDrawPushConstants {
+	glm::mat4 worldMatrix;
+	VkDeviceAddress vertexBuffer;
+};
+
 struct AllocatedImage
 {
-    VkImage image;
-    VkImageView imageView;
-    VmaAllocation allocation;
-    VkExtent3D imageExtent;
-    VkFormat imageFormat;
+	VkImage image;
+	VkImageView imageView;
+	VmaAllocation allocation;
+	VkExtent3D imageExtent;
+	VkFormat imageFormat;
 };
 
 struct ComputePushConstants {

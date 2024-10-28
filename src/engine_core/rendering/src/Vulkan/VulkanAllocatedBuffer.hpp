@@ -1,4 +1,4 @@
-/*! \file VulkanVertexBuffer.hpp
+/*! \file VulkanAllocatedBuffer.hpp
     \author Kyn21kx
     \date 2024-05-28
     \brief Vulkan implementation of the Vertex Buffer class
@@ -11,12 +11,20 @@
 
 namespace Hush
 {
-    class VulkanVertexBuffer final
+    class VulkanAllocatedBuffer final
     {
     public:
-        VulkanVertexBuffer(uint32_t size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocator allocator);
+        VulkanAllocatedBuffer() = default;
+
+        VulkanAllocatedBuffer(uint32_t size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocator allocator);
+
+        void Dispose(VmaAllocator allocator);
 
         [[nodiscard]] uint32_t GetSize() const noexcept;
+
+        [[nodiscard]] VmaAllocation GetAllocation();
+
+        [[nodiscard]] VkBuffer GetBuffer();
 
     private:
         VkBuffer m_buffer = nullptr;

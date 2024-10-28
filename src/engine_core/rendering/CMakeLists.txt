@@ -2,7 +2,7 @@
 
 add_library(HushRendering OBJECT
         src/WindowRenderer.cpp
-        src/Vulkan/VulkanVertexBuffer.cpp
+        src/Vulkan/VulkanAllocatedBuffer.cpp
         src/Vulkan/VulkanRenderer.cpp
         src/Vulkan/VulkanPipelineBuilder.cpp
         src/Vulkan/VkDescriptors.cpp
@@ -18,6 +18,7 @@ target_link_libraries(HushRendering PUBLIC
         Vulkan::Vulkan
         vk-bootstrap::vk-bootstrap
         glm::glm
+        fastgltf::fastgltf
         HushLog
         HushUtils
         HushInput

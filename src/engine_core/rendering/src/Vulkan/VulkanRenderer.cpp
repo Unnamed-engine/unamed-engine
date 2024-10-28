@@ -28,6 +28,8 @@
 #include <typeutils/TypeUtils.hpp>
 #include <volk.h>
 #include <vulkan/vulkan_core.h>
+#include "VulkanAllocatedBuffer.hpp"
+#include "GPUMeshBuffers.hpp"
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -332,13 +334,15 @@ void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
 
 void Hush::VulkanRenderer::InitRendering()
 {
+    this->CreateSyncObjects();
+
     this->InitializeCommands();
 
     this->InitDescriptors();
 
-    this->InitPipelines();
+    this->InitDefaultData();
 
-    this->CreateSyncObjects();
+    this->InitPipelines();
 }
 
 void Hush::VulkanRenderer::Dispose()
@@ -730,7 +734,6 @@ void Hush::VulkanRenderer::InitDescriptors() noexcept
     // make sure both the descriptor allocator and the new layout get cleaned up properly
     this->m_mainDeletionQueue.PushFunction([&]() {
         m_globalDescriptorAllocator.DestroyPool(m_device);
-
         vkDestroyDescriptorSetLayout(m_device, m_drawImageDescriptorLayout, nullptr);
     });
 }
@@ -739,6 +742,7 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
 {
     this->InitBackgroundPipelines();
     this->InitTrianglePipeline();
+    this->InitMeshPipeline();
 }
 
 void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
@@ -793,6 +797,101 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
     });
 }
 
+void Hush::VulkanRenderer::InitMeshPipeline() noexcept
+{
+	constexpr std::string_view fragmentShaderPath = "Y:/Programming/C++/Hush-Engine/res/colored_triangle.frag.spv";
+	constexpr std::string_view vertexShaderPath = "Y:/Programming/C++/Hush-Engine/res/colored_triangle_mesh.vert.spv";
+
+	VkShaderModule triangleFragShader;
+	if (!VulkanHelper::LoadShaderModule(fragmentShaderPath, this->m_device, &triangleFragShader)) {
+		LogError("Error when building the triangle fragment shader module");
+	}
+
+	VkShaderModule triangleVertexShader;
+	if (!VulkanHelper::LoadShaderModule(vertexShaderPath, this->m_device, &triangleVertexShader)) {
+		LogError("Error when building the triangle vertex shader module");
+	}
+
+	VkPushConstantRange bufferRange{};
+	bufferRange.offset = 0;
+	bufferRange.size = sizeof(GPUDrawPushConstants);
+	bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	//build the pipeline layout that controls the inputs/outputs of the shader
+	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkUtilsFactory::PipelineLayoutCreateInfo();
+	pipelineLayoutInfo.pPushConstantRanges = &bufferRange;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+	VkResult rc = vkCreatePipelineLayout(this->m_device, &pipelineLayoutInfo, nullptr, &this->m_meshPipelineLayout);
+	HUSH_VK_ASSERT(rc, "Failed to create triangle pipeline");
+
+	VulkanPipelineBuilder pipelineBuilder(this->m_meshPipelineLayout);
+
+	//connecting the vertex and pixel shaders to the pipeline
+	pipelineBuilder.SetShaders(triangleVertexShader, triangleFragShader);
+	//it will draw triangles
+	pipelineBuilder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	//filled triangles
+	pipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//no backface culling
+	pipelineBuilder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+	//no multisampling
+	pipelineBuilder.SetMultiSamplingNone();
+	//no blending
+	pipelineBuilder.DisableBlending();
+
+	pipelineBuilder.DisableDepthTest();
+
+	//connect the image format we will draw into, from draw image
+	pipelineBuilder.SetColorAttachmentFormat(this->m_drawImage.imageFormat);
+	pipelineBuilder.SetDepthFormat(VK_FORMAT_UNDEFINED);
+
+	//finally build the pipeline
+	this->m_meshPipeline = pipelineBuilder.Build(this->m_device);
+
+	//clean structures
+	vkDestroyShaderModule(this->m_device, triangleFragShader, nullptr);
+	vkDestroyShaderModule(this->m_device, triangleVertexShader, nullptr);
+
+	this->m_mainDeletionQueue.PushFunction([=]() {
+		vkDestroyPipelineLayout(m_device, m_meshPipelineLayout, nullptr);
+		vkDestroyPipeline(m_device, m_meshPipeline, nullptr);
+	});
+}
+
+void Hush::VulkanRenderer::InitDefaultData() noexcept
+{
+	std::array<Vertex, 4> rectVertices;
+
+	rectVertices[0].position = { 0.5,-0.5, 0 };
+	rectVertices[1].position = { 0.5,0.5, 0 };
+	rectVertices[2].position = { -0.5,-0.5, 0 };
+	rectVertices[3].position = { -0.5,0.5, 0 };
+
+	rectVertices[0].color = { 0,0, 0,1 };
+	rectVertices[1].color = { 0.5,0.5,0.5 ,1 };
+	rectVertices[2].color = { 1,0, 0,1 };
+	rectVertices[3].color = { 0,1, 0,1 };
+
+	std::array<uint32_t, 6> rectIndices;
+
+	rectIndices[0] = 0;
+	rectIndices[1] = 1;
+	rectIndices[2] = 2;
+
+	rectIndices[3] = 2;
+	rectIndices[4] = 1;
+	rectIndices[5] = 3;
+
+	m_rectangle = this->UploadMesh(std::vector<uint32_t>(rectIndices.begin(), rectIndices.end()), std::vector<Vertex>(rectVertices.begin(), rectVertices.end()));
+
+	//delete the rectangle data on engine shutdown
+	this->m_mainDeletionQueue.PushFunction([&]() {
+		m_rectangle.indexBuffer.Dispose(m_allocator);
+		m_rectangle.vertexBuffer.Dispose(m_allocator);
+	});
+}
+
 void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 {
 	//begin a render pass  connected to our draw image
@@ -833,6 +932,17 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
 	//launch a draw command to draw 3 vertices
 	vkCmdDraw(cmd, 3, 1, 0, 0);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, this->m_meshPipeline);
+
+	GPUDrawPushConstants push_constants;
+	push_constants.worldMatrix = glm::mat4{ 1.f };
+	push_constants.vertexBuffer = m_rectangle.vertexBufferAddress;
+
+	vkCmdPushConstants(cmd, this->m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+	vkCmdBindIndexBuffer(cmd, m_rectangle.indexBuffer.GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+	vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
 
 	vkCmdEndRendering(cmd);
 }
@@ -975,4 +1085,57 @@ void Hush::VulkanRenderer::InitTrianglePipeline()
 		vkDestroyPipelineLayout(m_device, m_trianglePipelineLayout, nullptr);
 		vkDestroyPipeline(m_device, m_trianglePipeline, nullptr);
 	});
+}
+
+Hush::GPUMeshBuffers Hush::VulkanRenderer::UploadMesh(const std::vector<uint32_t>& indices, const std::vector<Vertex>& vertices)
+{
+    const uint32_t vertexBufferSize = static_cast<uint32_t>(vertices.size() * sizeof(Vertex));
+    const uint32_t indexBufferSize = static_cast<uint32_t>(indices.size() * sizeof(uint32_t));
+
+    GPUMeshBuffers newSurface;
+
+    //create vertex buffer
+    newSurface.vertexBuffer = VulkanAllocatedBuffer(vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY, this->m_allocator);
+
+    //find the adress of the vertex buffer
+    VkBufferDeviceAddressInfo deviceAddressInfo{};
+    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    deviceAddressInfo.buffer = newSurface.vertexBuffer.GetBuffer();
+	newSurface.vertexBufferAddress = vkGetBufferDeviceAddress(this->m_device, &deviceAddressInfo);
+
+	//create index buffer
+	newSurface.indexBuffer = VulkanAllocatedBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VMA_MEMORY_USAGE_GPU_ONLY, this->m_allocator);
+
+	VulkanAllocatedBuffer staging(vertexBufferSize + indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, this->m_allocator);
+
+	void* data = staging.GetAllocation()->GetMappedData();
+
+	// copy vertex buffer
+	memcpy(data, vertices.data(), vertexBufferSize);
+	// copy index buffer
+	memcpy((char*)data + vertexBufferSize, indices.data(), indexBufferSize);
+
+	this->ImmediateSubmit([&](VkCommandBuffer cmd) {
+		VkBufferCopy vertexCopy{ 0 };
+		vertexCopy.dstOffset = 0;
+		vertexCopy.srcOffset = 0;
+		vertexCopy.size = vertexBufferSize;
+
+		vkCmdCopyBuffer(cmd, staging.GetBuffer(), newSurface.vertexBuffer.GetBuffer(), 1, &vertexCopy);
+
+		VkBufferCopy indexCopy{ 0 };
+		indexCopy.dstOffset = 0;
+		indexCopy.srcOffset = vertexBufferSize;
+		indexCopy.size = indexBufferSize;
+
+		vkCmdCopyBuffer(cmd, staging.GetBuffer(), newSurface.indexBuffer.GetBuffer(), 1, &indexCopy);
+		});
+
+	staging.Dispose(this->m_allocator);
+
+
+	return newSurface;
+
 }
