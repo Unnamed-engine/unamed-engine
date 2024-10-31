@@ -31,6 +31,7 @@ constexpr uint32_t VK_OPERATION_TIMEOUT_NS = 1'000'000'000; // This is one secon
 
 namespace Hush
 {
+    class MeshAsset;
 
     class VulkanRenderer final : public IRenderer
     {
@@ -84,6 +85,8 @@ namespace Hush
 
         [[nodiscard]] void *GetWindowContext() const noexcept override;
 
+		GPUMeshBuffers UploadMesh(const std::vector<uint32_t>& indices, const std::vector<Vertex>& vertices);
+
       private:
         void Configure(vkb::Instance vkbInstance);
 
@@ -131,8 +134,6 @@ namespace Hush
 
         void InitTrianglePipeline();
 
-		GPUMeshBuffers UploadMesh(const std::vector<uint32_t>& indices, const std::vector<Vertex>& vertices);
-		
         void *m_windowContext;
         // TODO: Send all of these to a custom struct holding the pointers
         VkInstance m_vulkanInstance = nullptr;
@@ -153,6 +154,8 @@ namespace Hush
 		VkPipeline m_trianglePipeline = nullptr;
 		VkPipelineLayout m_meshPipelineLayout = nullptr;
 		VkPipeline m_meshPipeline = nullptr;
+
+        std::vector<std::shared_ptr<MeshAsset>> testMeshes;
 
 		GPUMeshBuffers m_rectangle;
 

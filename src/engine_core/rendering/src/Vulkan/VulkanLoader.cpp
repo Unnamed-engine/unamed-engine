@@ -3,6 +3,7 @@
 #include <fastgltf/types.hpp>
 #include <fastgltf/tools.hpp>
 #include "VkTypes.hpp"
+#include "VulkanRenderer.hpp"
 
 std::optional<std::vector<std::shared_ptr<Hush::MeshAsset>>> Hush::VulkanLoader::LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath)
 {
@@ -19,16 +20,20 @@ std::optional<std::vector<std::shared_ptr<Hush::MeshAsset>>> Hush::VulkanLoader:
 	
 	std::vector<uint32_t> indices;
 	std::vector<Vertex> vertices;
+	std::vector<std::shared_ptr<MeshAsset>> meshes;
 	for (const fastgltf::Mesh& mesh : loadedAsset->meshes)
 	{
-		CreateMeshAssetFromGltfMesh(mesh, loadedAsset.get(), indices, vertices);
+		MeshAsset meshToAdd = CreateMeshAssetFromGltfMesh(mesh, loadedAsset.get(), indices, vertices, engine);
+		meshes.push_back(std::make_shared<MeshAsset>(meshToAdd));
 	}
-
-	std::vector<std::shared_ptr<MeshAsset>> meshes;
+	return meshes;
 }
 
-Hush::MeshAsset Hush::VulkanLoader::CreateMeshAssetFromGltfMesh(const fastgltf::Mesh& mesh, const fastgltf::Asset& asset, std::vector<uint32_t>& indicesRef, std::vector<Vertex>& verticesRef)
+Hush::MeshAsset Hush::VulkanLoader::CreateMeshAssetFromGltfMesh(const fastgltf::Mesh& mesh, const fastgltf::Asset& asset, std::vector<uint32_t>& indicesRef, std::vector<Vertex>& verticesRef, VulkanRenderer* engine)
 {
+	MeshAsset resultMesh;
+
+	resultMesh.name = mesh.name;
 	//Clear out the vector buffers
 	indicesRef.clear();
 	verticesRef.clear();
@@ -47,26 +52,62 @@ Hush::MeshAsset Hush::VulkanLoader::CreateMeshAssetFromGltfMesh(const fastgltf::
 		{
 			indicesRef.reserve(indicesRef.size() + primitiveIdxAccessor.count);
 			fastgltf::iterateAccessor<uint32_t>(asset, primitiveIdxAccessor, [&](uint32_t idx) {
-				indicesRef.push_back(idx /* + initialVertex? Maybe */);
+				indicesRef.push_back(idx + initialVertex);
 			});
 		}
 
-		{
-			const fastgltf::Accessor& posAccessor = asset.accessors[primitive.findAttribute("POSITION")->second];
-			verticesRef.resize(verticesRef.size() + posAccessor.count);
-
-			fastgltf::iterateAccessorWithIndex<glm::vec3>(asset, posAccessor,
-				[&](glm::vec3 v, size_t index) {
-					Vertex verexToAdd {};
-					verexToAdd.position = v;
-					verexToAdd.normal = { 1, 0, 0 };
-					verexToAdd.color = glm::vec4{ 1.f };
-					verexToAdd.uv_x = 0;
-					verexToAdd.uv_y = 0;
-					verticesRef[initialVertex + index] = verexToAdd;
-				}
-			);
+		std::vector<glm::vec3> vertexBuffer = FindAttributeByName<glm::vec3>(primitive, asset, "POSITION");
+		for (const glm::vec3& v : vertexBuffer) {
+			Vertex vertexToAdd{};
+			vertexToAdd.position = v;
+			verticesRef.push_back(vertexToAdd);
+		}
+		
+		std::vector<glm::vec3> normalBuffer = FindAttributeByName<glm::vec3>(primitive, asset, "NORMAL");
+		for (uint32_t i = 0; i < normalBuffer.size(); i++) {
+			verticesRef.at(i + initialVertex).normal = normalBuffer.at(i);
 		}
 
+		// load UVs
+		std::vector<glm::vec2> texBuffer = FindAttributeByName<glm::vec2>(primitive, asset, "TEXCOORD_0");
+
+		for (uint32_t i = 0; i < texBuffer.size(); i++) {
+			verticesRef.at(i + initialVertex).uv_x = texBuffer.at(i).x;
+			verticesRef.at(i + initialVertex).uv_y = texBuffer.at(i).y;
+		}
+
+		// load vertex colors
+		std::vector<glm::vec4> colors = FindAttributeByName<glm::vec4>(primitive, asset, "COLOR_0");
+
+		for (uint32_t i = 0; i < colors.size(); i++) {
+			verticesRef.at(i + initialVertex).color = colors.at(i);
+		}
+
+		resultMesh.surfaces.push_back(surfaceToAdd);
 	}
+
+	// display the vertex normals
+	constexpr bool overrideColors = true;
+	if (overrideColors) {
+		for (Vertex& vtx : verticesRef) {
+			vtx.color = glm::vec4(vtx.normal, 1.f);
+		}
+	}
+	resultMesh.meshBuffers = engine->UploadMesh(indicesRef, verticesRef);
+	return resultMesh;
+}
+
+const uint8_t* Hush::VulkanLoader::GetDataFromBufferSource(const fastgltf::Buffer& buffer)
+{
+	const fastgltf::sources::Vector* vectorData = std::get_if<fastgltf::sources::Vector>(&buffer.data);
+	if (vectorData != nullptr) {
+		return vectorData->bytes.data();
+	}
+	//Ok, try the ByteView
+	const fastgltf::sources::ByteView* byteData = std::get_if<fastgltf::sources::ByteView>(&buffer.data);
+	if (byteData != nullptr) {
+		return reinterpret_cast<const uint8_t*>(byteData->bytes.data());
+	}
+	//Else, idk, we don't recognize this yet
+	return nullptr;
 }

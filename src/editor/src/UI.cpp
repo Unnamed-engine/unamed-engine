@@ -18,6 +18,8 @@ void Hush::UI::DrawPanels()
     {
         S_ACTIVE_PANELS.at(i)->OnRender();
     }
+    ImGui::EndFrame();
+	ImGui::Render();
 }
 
 void Hush::UI::InitializePanels()
@@ -80,7 +82,7 @@ bool Hush::UI::BeginToolBar()
 }
 void Hush::UI::DockSpace()
 {
-    static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
+    static ImGuiDockNodeFlags dockspaceFlags = ImGuiDockNodeFlags_None | ImGuiDockNodeFlags_PassthruCentralNode;
 
     // We are using the ImGuiWindowFlags_NoDocking flag to make the parent window not dockable into,
     // because it would be confusing to have two docking targets within each others.
@@ -99,7 +101,7 @@ void Hush::UI::DockSpace()
 
     // When using ImGuiDockNodeFlags_PassthruCentralNode, DockSpace() will render our background
     // and handle the pass-thru hole, so we ask Begin() to not render a background.
-    if (dockspace_flags & ImGuiDockNodeFlags_PassthruCentralNode)
+    if (dockspaceFlags & ImGuiDockNodeFlags_PassthruCentralNode)
         window_flags |= ImGuiWindowFlags_NoBackground;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -108,7 +110,7 @@ void Hush::UI::DockSpace()
     ImGui::PopStyleVar(2);
 
     ImGuiID dockspaceId = ImGui::GetID("HushDockspace");
-    ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), dockspace_flags);
+    ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), dockspaceFlags);
     ImGui::End();
 }
 void Hush::UI::DrawPlayButton()

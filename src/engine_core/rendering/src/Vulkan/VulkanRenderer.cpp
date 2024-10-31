@@ -30,6 +30,8 @@
 #include <vulkan/vulkan_core.h>
 #include "VulkanAllocatedBuffer.hpp"
 #include "GPUMeshBuffers.hpp"
+#include "VulkanLoader.hpp"
+#include <glm/gtx/transform.hpp>
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -137,7 +139,8 @@ void Hush::VulkanRenderer::CreateSwapChain(uint32_t width, uint32_t height)
 {
     vkb::SwapchainBuilder swapchainBuilder{m_vulkanPhysicalDevice, m_device, m_surface};
 
-    this->m_swapchainImageFormat = VK_FORMAT_B8G8R8A8_UNORM;
+    //FIXME: Color info
+    this->m_swapchainImageFormat = VK_FORMAT_B8G8R8A8_SRGB;
 
     auto vkSurfaceFormat = VkSurfaceFormatKHR{};
     vkSurfaceFormat.format = this->m_swapchainImageFormat;
@@ -253,7 +256,7 @@ void Hush::VulkanRenderer::Draw()
     VkImage currentImage = this->m_swapchainImages.at(swapchainImageIndex);
     
     this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    this->DrawBackground(cmd);
+    //this->DrawBackground(cmd);
     //Transition
 	this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	//TODO: Restore when we actually care about depth stuff
@@ -618,15 +621,9 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    /*
     //TODO: Make
-    std::string structurePath = {"..\\..\\assets\\structure.glb"};
-    auto structureFile = loadGltf(this, structurePath);
-
-    assert(structureFile.has_value());
-
-    loadedScenes["structure"] = *structureFile;
-    */
+    std::string structurePath = "Y:/Programming/C++/Hush-Engine/res/monkey.glb";
+    this->testMeshes = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
 }
 
 void Hush::VulkanRenderer::TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout,
@@ -935,14 +932,34 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, this->m_meshPipeline);
 
-	GPUDrawPushConstants push_constants;
-	push_constants.worldMatrix = glm::mat4{ 1.f };
-	push_constants.vertexBuffer = m_rectangle.vertexBufferAddress;
+	GPUDrawPushConstants pushContants;
+	pushContants.worldMatrix = glm::mat4{ 1.f };
+	pushContants.vertexBuffer = m_rectangle.vertexBufferAddress;
 
-	vkCmdPushConstants(cmd, this->m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+	vkCmdPushConstants(cmd, this->m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushContants);
 	vkCmdBindIndexBuffer(cmd, m_rectangle.indexBuffer.GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
 	vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+
+    //Draw the mesh
+	glm::mat4 view = glm::translate(glm::vec3(0,0,-5));
+	// camera projection
+	glm::mat4 projection = glm::perspective(glm::radians(70.f), static_cast<float>(this->m_width) / static_cast<float>(this->m_height), 10000.f, 0.1f);
+
+	// invert the Y direction on projection matrix so that we are more similar
+	// to opengl and gltf axis
+	projection[1][1] *= -1;
+
+	pushContants.worldMatrix = projection * view;
+	//< matview
+	//> meshdraw
+	pushContants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+
+	vkCmdPushConstants(cmd, this->m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushContants);
+	vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+	vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+	//< meshdraw
 
 	vkCmdEndRendering(cmd);
 }
@@ -1131,10 +1148,9 @@ Hush::GPUMeshBuffers Hush::VulkanRenderer::UploadMesh(const std::vector<uint32_t
 		indexCopy.size = indexBufferSize;
 
 		vkCmdCopyBuffer(cmd, staging.GetBuffer(), newSurface.indexBuffer.GetBuffer(), 1, &indexCopy);
-		});
+	});
 
 	staging.Dispose(this->m_allocator);
-
 
 	return newSurface;
 

@@ -43,8 +43,6 @@ void Hush::HushEngine::Run()
 
         this->m_app->OnRender();
 
-        // UI::DrawPanels();
-
         rendererImpl->Draw();
 
         this->m_app->OnPostRender();
