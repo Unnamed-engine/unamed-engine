@@ -32,6 +32,7 @@
 #include "GPUMeshBuffers.hpp"
 #include "VulkanLoader.hpp"
 #include <glm/gtx/transform.hpp>
+#include "../../../editor/src/DebugTooltip.hpp"
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -192,8 +193,38 @@ void Hush::VulkanRenderer::CreateSwapChain(uint32_t width, uint32_t height)
     HUSH_VK_ASSERT(vkCreateImageView(this->m_device, &rViewInfo, nullptr, &this->m_drawImage.imageView),
                    "Failed to create image view");
 
+	this->m_depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
+	this->m_depthImage.imageExtent = drawImageExtent;
+	VkImageUsageFlags depthImageUsages{};
+	depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+	VkImageCreateInfo depthImgInfo = VkUtilsFactory::CreateImageCreateInfo(m_depthImage.imageFormat, depthImageUsages, drawImageExtent);
+
+	//allocate and create the image
+	vmaCreateImage(
+        this->m_allocator,
+        &depthImgInfo,
+        &rimgAllocInfo,
+        &this->m_depthImage.image,
+        &this->m_depthImage.allocation,
+        nullptr
+    );
+
+	//build a image-view for the draw image to use for rendering
+	VkImageViewCreateInfo dview_info = VkUtilsFactory::CreateImageViewCreateInfo(
+        this->m_depthImage.imageFormat,
+        this->m_depthImage.image, 
+        VK_IMAGE_ASPECT_DEPTH_BIT
+    );
+
+    VkResult rc = vkCreateImageView(this->m_device, &dview_info, nullptr, &this->m_depthImage.imageView);
+	HUSH_VK_ASSERT(rc, "Failed to create depth image view!");
+
     // add to deletion queues
     this->m_mainDeletionQueue.PushFunction([=]() {
+		vkDestroyImageView(m_device, m_depthImage.imageView, nullptr);
+		vmaDestroyImage(m_allocator, m_depthImage.image, m_depthImage.allocation);
+
         vkDestroyImageView(m_device, m_drawImage.imageView, nullptr);
         vmaDestroyImage(m_allocator, m_drawImage.image, m_drawImage.allocation);
     });
@@ -259,8 +290,7 @@ void Hush::VulkanRenderer::Draw()
     //this->DrawBackground(cmd);
     //Transition
 	this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	//TODO: Restore when we actually care about depth stuff
-    //this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+	this->TransitionImage(cmd, this->m_depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
     //Geometry
     this->DrawGeometry(cmd);
 
@@ -341,6 +371,8 @@ void Hush::VulkanRenderer::InitRendering()
 
     this->InitializeCommands();
 
+    this->InitRenderables();
+
     this->InitDescriptors();
 
     this->InitDefaultData();
@@ -352,10 +384,14 @@ void Hush::VulkanRenderer::Dispose()
 {
     this->m_uiForwarder->Dispose();
     LogTrace("Disposed of ImGui resources");
-
     if (this->m_device != nullptr)
     {
         vkDeviceWaitIdle(this->m_device);
+
+        for (auto& mesh : this->testMeshes) {
+            mesh->meshBuffers.indexBuffer.Dispose(this->m_allocator);
+            mesh->meshBuffers.vertexBuffer.Dispose(this->m_allocator);
+        }
 
         this->m_mainDeletionQueue.Flush();
         for (int i = 0; i < FRAME_OVERLAP; i++)
@@ -621,8 +657,7 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    //TODO: Make
-    std::string structurePath = "Y:/Programming/C++/Hush-Engine/res/monkey.glb";
+    std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\monkey.glb";
     this->testMeshes = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
 }
 
@@ -738,7 +773,6 @@ void Hush::VulkanRenderer::InitDescriptors() noexcept
 void Hush::VulkanRenderer::InitPipelines() noexcept
 {
     this->InitBackgroundPipelines();
-    this->InitTrianglePipeline();
     this->InitMeshPipeline();
 }
 
@@ -837,11 +871,11 @@ void Hush::VulkanRenderer::InitMeshPipeline() noexcept
 	//no blending
 	pipelineBuilder.DisableBlending();
 
-	pipelineBuilder.DisableDepthTest();
+	pipelineBuilder.EnableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
 	//connect the image format we will draw into, from draw image
 	pipelineBuilder.SetColorAttachmentFormat(this->m_drawImage.imageFormat);
-	pipelineBuilder.SetDepthFormat(VK_FORMAT_UNDEFINED);
+	pipelineBuilder.SetDepthFormat(this->m_depthImage.imageFormat);
 
 	//finally build the pipeline
 	this->m_meshPipeline = pipelineBuilder.Build(this->m_device);
@@ -865,7 +899,7 @@ void Hush::VulkanRenderer::InitDefaultData() noexcept
 	rectVertices[2].position = { -0.5,-0.5, 0 };
 	rectVertices[3].position = { -0.5,0.5, 0 };
 
-	rectVertices[0].color = { 0,0, 0,1 };
+	rectVertices[0].color = { 1,0, 1,1 };
 	rectVertices[1].color = { 0.5,0.5,0.5 ,1 };
 	rectVertices[2].color = { 1,0, 0,1 };
 	rectVertices[3].color = { 0,1, 0,1 };
@@ -898,15 +932,18 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
     );
 
+	VkRenderingAttachmentInfo depthAttachment = VkUtilsFactory::DepthAttachmentInfo(
+		this->m_depthImage.imageView,
+        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL
+	);
+
     VkExtent2D extent = {
         this->m_width,
         this->m_height
     };
 
-	VkRenderingInfo renderInfo = VkUtilsFactory::CreateRenderingInfo(extent, &colorAttachment, nullptr);
+	VkRenderingInfo renderInfo = VkUtilsFactory::CreateRenderingInfo(extent, &colorAttachment, &depthAttachment);
 	vkCmdBeginRendering(cmd, &renderInfo);
-
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, this->m_trianglePipeline);
 
 	//set dynamic viewport and scissor
 	VkViewport viewport = {};
@@ -927,38 +964,37 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
 	vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-	//launch a draw command to draw 3 vertices
-	vkCmdDraw(cmd, 3, 1, 0, 0);
-
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, this->m_meshPipeline);
 
 	GPUDrawPushConstants pushContants;
-	pushContants.worldMatrix = glm::mat4{ 1.f };
-	pushContants.vertexBuffer = m_rectangle.vertexBufferAddress;
 
-	vkCmdPushConstants(cmd, this->m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushContants);
-	vkCmdBindIndexBuffer(cmd, m_rectangle.indexBuffer.GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
-	vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
-
+    glm::vec3 scale = DebugTooltip::s_debugTooltip == nullptr ? glm::vec3{0.0f} : DebugTooltip::s_debugTooltip->GetScale();
     //Draw the mesh
-	glm::mat4 view = glm::translate(glm::vec3(0,0,-5));
+    scale.y *= -1;
 	// camera projection
-	glm::mat4 projection = glm::perspective(glm::radians(70.f), static_cast<float>(this->m_width) / static_cast<float>(this->m_height), 10000.f, 0.1f);
+	glm::mat4 scaleMatrix = glm::scale(glm::mat4(1.0f), scale);
 
-	// invert the Y direction on projection matrix so that we are more similar
-	// to opengl and gltf axis
-	projection[1][1] *= -1;
+	// Create translation matrix
+	glm::mat4 translateMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
 
-	pushContants.worldMatrix = projection * view;
+	// Combine matrices: Scale * Translate (order matters!)
+	glm::mat4 modelMatrix = translateMatrix * scaleMatrix;
+
+	// If you have view and projection matrices
+	glm::mat4 viewMatrix = glm::mat4(1.0f);
+	glm::mat4 projectionMatrix = glm::mat4(1.0f);
+
+	// Compute final transform matrix
+	pushContants.worldMatrix = projectionMatrix * viewMatrix * modelMatrix;
+
+    const std::shared_ptr<MeshAsset>& meshToDraw = testMeshes[0];
 	//< matview
 	//> meshdraw
-	pushContants.vertexBuffer = testMeshes[2]->meshBuffers.vertexBufferAddress;
+	pushContants.vertexBuffer = meshToDraw->meshBuffers.vertexBufferAddress;
 
 	vkCmdPushConstants(cmd, this->m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushContants);
-	vkCmdBindIndexBuffer(cmd, testMeshes[2]->meshBuffers.indexBuffer.GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
-	vkCmdDrawIndexed(cmd, testMeshes[2]->surfaces[0].count, 1, testMeshes[2]->surfaces[0].startIndex, 0, 0);
+	vkCmdBindIndexBuffer(cmd, meshToDraw->meshBuffers.indexBuffer.GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(cmd, meshToDraw->surfaces[0].count, 1, meshToDraw->surfaces[0].startIndex, 0, 0);
 	//< meshdraw
 
 	vkCmdEndRendering(cmd);
@@ -1049,61 +1085,6 @@ void Hush::VulkanRenderer::ResizeSwapchain()
     this->m_resizeRequested = false;
 }
 
-void Hush::VulkanRenderer::InitTrianglePipeline()
-{
-	constexpr std::string_view fragmentShaderPath = "Y:/Programming/C++/Hush-Engine/res/colored_triangle.frag.spv";
-	constexpr std::string_view vertexShaderPath = "Y:/Programming/C++/Hush-Engine/res/colored_triangle.vert.spv";
-	
-	VkShaderModule triangleFragShader;
-    if (!VulkanHelper::LoadShaderModule(fragmentShaderPath, this->m_device, &triangleFragShader)) {
-		LogError("Error when building the triangle fragment shader module");
-	}
-
-	VkShaderModule triangleVertexShader;
-	if (!VulkanHelper::LoadShaderModule(vertexShaderPath, this->m_device, &triangleVertexShader)) {
-		LogError("Error when building the triangle vertex shader module");
-	}
-
-	//build the pipeline layout that controls the inputs/outputs of the shader
-	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkUtilsFactory::PipelineLayoutCreateInfo();
-    VkResult rc = vkCreatePipelineLayout(this->m_device, &pipelineLayoutInfo, nullptr, &this->m_trianglePipelineLayout);
-    HUSH_VK_ASSERT(rc, "Failed to create triangle pipeline");
-
-	VulkanPipelineBuilder pipelineBuilder(this->m_trianglePipelineLayout);
-
-	//connecting the vertex and pixel shaders to the pipeline
-	pipelineBuilder.SetShaders(triangleVertexShader, triangleFragShader);
-	//it will draw triangles
-	pipelineBuilder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	//filled triangles
-	pipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	//no backface culling
-	pipelineBuilder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
-	//no multisampling
-	pipelineBuilder.SetMultiSamplingNone();
-	//no blending
-	pipelineBuilder.DisableBlending();
-	
-	pipelineBuilder.DisableDepthTest();
-
-	//connect the image format we will draw into, from draw image
-	pipelineBuilder.SetColorAttachmentFormat(this->m_drawImage.imageFormat);
-	pipelineBuilder.SetDepthFormat(VK_FORMAT_UNDEFINED);
-
-	//finally build the pipeline
-	this->m_trianglePipeline = pipelineBuilder.Build(this->m_device);
-
-	//clean structures
-	vkDestroyShaderModule(this->m_device, triangleFragShader, nullptr);
-	vkDestroyShaderModule(this->m_device, triangleVertexShader, nullptr);
-
-	this->m_mainDeletionQueue.PushFunction([=]() {
-		vkDestroyPipelineLayout(m_device, m_trianglePipelineLayout, nullptr);
-		vkDestroyPipeline(m_device, m_trianglePipeline, nullptr);
-	});
-}
-
 Hush::GPUMeshBuffers Hush::VulkanRenderer::UploadMesh(const std::vector<uint32_t>& indices, const std::vector<Vertex>& vertices)
 {
     const uint32_t vertexBufferSize = static_cast<uint32_t>(vertices.size() * sizeof(Vertex));
@@ -1132,7 +1113,7 @@ Hush::GPUMeshBuffers Hush::VulkanRenderer::UploadMesh(const std::vector<uint32_t
 	// copy vertex buffer
 	memcpy(data, vertices.data(), vertexBufferSize);
 	// copy index buffer
-	memcpy((char*)data + vertexBufferSize, indices.data(), indexBufferSize);
+	memcpy((uint8_t*)data + vertexBufferSize, indices.data(), indexBufferSize);
 
 	this->ImmediateSubmit([&](VkCommandBuffer cmd) {
 		VkBufferCopy vertexCopy{ 0 };

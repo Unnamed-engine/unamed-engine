@@ -5,6 +5,7 @@
 */
 
 #pragma once
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define VK_NO_PROTOTYPES
 
 #include "Renderer.hpp"
@@ -31,7 +32,7 @@ constexpr uint32_t VK_OPERATION_TIMEOUT_NS = 1'000'000'000; // This is one secon
 
 namespace Hush
 {
-    class MeshAsset;
+    struct MeshAsset;
 
     class VulkanRenderer final : public IRenderer
     {
@@ -130,9 +131,7 @@ namespace Hush
 
         VkCommandBuffer PrepareCommandBuffer(FrameData& currentFrame, uint32_t* swapchainImageIndex);
 
-        void ResizeSwapchain();
-
-        void InitTrianglePipeline();
+		void ResizeSwapchain();
 
         void *m_windowContext;
         // TODO: Send all of these to a custom struct holding the pointers
@@ -170,6 +169,7 @@ namespace Hush
         uint32_t m_height = 0u;
         // draw resources
         AllocatedImage m_drawImage{};
+        AllocatedImage m_depthImage{};
 
         // Frame related data
         std::array<FrameData, FRAME_OVERLAP> m_frames{};

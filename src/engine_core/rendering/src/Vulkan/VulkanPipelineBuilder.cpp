@@ -206,6 +206,20 @@ Hush::VulkanPipelineBuilder& Hush::VulkanPipelineBuilder::DisableDepthTest()
     return *this;
 }
 
+Hush::VulkanPipelineBuilder& Hush::VulkanPipelineBuilder::EnableDepthTest(bool depthWriteEnable, VkCompareOp op)
+{
+	this->m_depthStencil.depthTestEnable = VK_TRUE;
+	this->m_depthStencil.depthWriteEnable = depthWriteEnable;
+	this->m_depthStencil.depthCompareOp = op;
+	this->m_depthStencil.depthBoundsTestEnable = VK_FALSE;
+	this->m_depthStencil.stencilTestEnable = VK_FALSE;
+	this->m_depthStencil.front = {};
+	this->m_depthStencil.back = {};
+	this->m_depthStencil.minDepthBounds = 0.f;
+    this->m_depthStencil.maxDepthBounds = 1.f;
+    return *this;
+}
+
 Hush::VulkanPipelineBuilder& Hush::VulkanPipelineBuilder::SetColorAttachmentFormat(VkFormat format)
 {
     this->m_colorAttachmentformat = format;

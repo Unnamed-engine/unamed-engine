@@ -14,9 +14,9 @@ std::optional<std::vector<std::shared_ptr<Hush::MeshAsset>>> Hush::VulkanLoader:
 
 	fastgltf::Parser parser{};
 
-	fastgltf::Expected<fastgltf::Asset> loadedAsset = parser.loadBinaryGLTF(&data, filePath, loadingOptions);
+	fastgltf::Expected<fastgltf::Asset> loadedAsset = parser.loadBinaryGLTF(&data, filePath.parent_path(), loadingOptions);
 
-	HUSH_ASSERT(loadedAsset, "GLTF asset at {} not properly loaded, error: {}!", filePath.c_str(), fastgltf::to_underlying(loadedAsset.error()));
+	HUSH_ASSERT(loadedAsset, "GLTF asset at {} not properly loaded, error: {}!", filePath.string(), fastgltf::getErrorMessage(loadedAsset.error()));
 	
 	std::vector<uint32_t> indices;
 	std::vector<Vertex> vertices;
@@ -42,19 +42,17 @@ Hush::MeshAsset Hush::VulkanLoader::CreateMeshAssetFromGltfMesh(const fastgltf::
 	{
 		size_t initialVertex = verticesRef.size();
 		GeoSurface surfaceToAdd{};
-		surfaceToAdd.startIndex = indicesRef.size();
+		surfaceToAdd.startIndex = static_cast<uint32_t>(indicesRef.size());
 		const fastgltf::Accessor& primitiveIdxAccessor = asset.accessors[primitive.indicesAccessor.value()];
 		surfaceToAdd.count = static_cast<uint32_t>(primitiveIdxAccessor.count);
 
 		//TODO: Make a function that can load any arbitrary primitive from glTF
 
 		// load indexes
-		{
-			indicesRef.reserve(indicesRef.size() + primitiveIdxAccessor.count);
-			fastgltf::iterateAccessor<uint32_t>(asset, primitiveIdxAccessor, [&](uint32_t idx) {
-				indicesRef.push_back(idx + initialVertex);
-			});
-		}
+		indicesRef.reserve(indicesRef.size() + primitiveIdxAccessor.count);
+		fastgltf::iterateAccessor<uint32_t>(asset, primitiveIdxAccessor, [&](uint32_t idx) {
+			indicesRef.push_back(idx + static_cast<uint32_t>(initialVertex));
+		});
 
 		std::vector<glm::vec3> vertexBuffer = FindAttributeByName<glm::vec3>(primitive, asset, "POSITION");
 		for (const glm::vec3& v : vertexBuffer) {

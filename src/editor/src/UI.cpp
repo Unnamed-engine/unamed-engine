@@ -6,6 +6,7 @@
 #include <imgui/imgui_internal.h>
 #include "ContentPanel.hpp"
 #include "DebugUI.hpp"
+#include "DebugTooltip.hpp"
 
 std::vector<std::unique_ptr<Hush::IEditorPanel>> Hush::UI::S_ACTIVE_PANELS{};
 
@@ -28,7 +29,8 @@ void Hush::UI::InitializePanels()
     S_ACTIVE_PANELS.push_back(CreatePanel<ScenePanel>());
     S_ACTIVE_PANELS.push_back(CreatePanel<HierarchyPanel>());
     S_ACTIVE_PANELS.push_back(CreatePanel<ContentPanel>());
-    S_ACTIVE_PANELS.push_back(CreatePanel<DebugUI>());
+	S_ACTIVE_PANELS.push_back(CreatePanel<DebugUI>());
+	S_ACTIVE_PANELS.push_back(CreatePanel<DebugTooltip>());
 }
 // NOLINTBEGIN
 #pragma warning(push, 0)

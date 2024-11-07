@@ -16,7 +16,7 @@ namespace Hush {
 
 		VulkanAllocatedBuffer indexBuffer{};
 		VulkanAllocatedBuffer vertexBuffer{};
-		VkDeviceAddress vertexBufferAddress;
+		VkDeviceAddress vertexBufferAddress = 0u;
 	};
 
 }
