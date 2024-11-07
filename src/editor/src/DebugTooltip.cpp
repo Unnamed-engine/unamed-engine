@@ -8,7 +8,7 @@ void Hush::DebugTooltip::OnRender() noexcept
 	}
 	ImGui::Begin("Debug tooltip (for rendering)");
 	float vecArr[] = {this->m_scale.x, this->m_scale.y, this->m_scale.z};
-	ImGui::SliderFloat3("Set the scale offset", vecArr, -10.0f, 10.0f);
+	ImGui::SliderFloat3("Set the scale offset", vecArr, -1.0f, 1.0f);
 	
 	this->m_scale = *reinterpret_cast<glm::vec3*>(vecArr);
 

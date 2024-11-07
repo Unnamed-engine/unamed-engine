@@ -747,21 +747,9 @@ void Hush::VulkanRenderer::InitDescriptors() noexcept
     this->m_drawImageDescriptors =
         this->m_globalDescriptorAllocator.Allocate(this->m_device, this->m_drawImageDescriptorLayout);
 
-    VkDescriptorImageInfo imgInfo{};
-    imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imgInfo.imageView = this->m_drawImage.imageView;
-
-    VkWriteDescriptorSet drawImageWrite = {};
-    drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    drawImageWrite.pNext = nullptr;
-
-    drawImageWrite.dstBinding = 0;
-    drawImageWrite.dstSet = this->m_drawImageDescriptors;
-    drawImageWrite.descriptorCount = 1;
-    drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    drawImageWrite.pImageInfo = &imgInfo;
-
-    vkUpdateDescriptorSets(this->m_device, 1, &drawImageWrite, 0, nullptr);
+    DescriptorWriter writer;
+    writer.WriteImage(0, this->m_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    writer.UpdateSet(this->m_device, this->m_drawImageDescriptors);
 
     // make sure both the descriptor allocator and the new layout get cleaned up properly
     this->m_mainDeletionQueue.PushFunction([&]() {
@@ -868,8 +856,8 @@ void Hush::VulkanRenderer::InitMeshPipeline() noexcept
 	pipelineBuilder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
 	//no multisampling
 	pipelineBuilder.SetMultiSamplingNone();
-	//no blending
-	pipelineBuilder.DisableBlending();
+	
+    pipelineBuilder.DisableBlending();
 
 	pipelineBuilder.EnableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
