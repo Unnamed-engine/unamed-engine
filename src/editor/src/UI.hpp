@@ -15,9 +15,9 @@ namespace Hush
     class UI
     {
       public:
-        static void DrawPanels();
+        UI();
 
-        static void InitializePanels();
+        void DrawPanels();
 
         static bool Spinner(const char *label, float radius, int thickness,
                             const uint32_t &color = 3435973836u /*Default button color*/);
@@ -28,11 +28,12 @@ namespace Hush
 
       private:
         static void DrawPlayButton();
+
         template <class T> static std::unique_ptr<T> CreatePanel()
         {
             return std::make_unique<T>();
         }
-        static std::vector<std::unique_ptr<IEditorPanel>> S_ACTIVE_PANELS;
+        std::vector<std::unique_ptr<IEditorPanel>> m_activePanels;
     };
 
 } // namespace Hush

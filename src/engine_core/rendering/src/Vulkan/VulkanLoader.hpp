@@ -6,6 +6,8 @@
 #include <filesystem>
 #include "GPUMeshBuffers.hpp"
 #include <fastgltf/types.hpp>
+#include <Result.hpp>
+#include "Error.hpp"
 
 
 namespace Hush {
@@ -34,7 +36,7 @@ namespace Hush {
 	private:
 		static MeshAsset CreateMeshAssetFromGltfMesh(const fastgltf::Mesh& mesh, const fastgltf::Asset& accessors, std::vector<uint32_t>& indicesRef, std::vector<Vertex>& verticesRef, VulkanRenderer* engine);
 		
-		static const uint8_t* GetDataFromBufferSource(const fastgltf::Buffer& buffer);
+		static Result<const uint8_t*, Error> GetDataFromBufferSource(const fastgltf::Buffer& buffer);
 		
 		template<class BufferType>
 		static std::vector<BufferType> FindAttributeByName(const fastgltf::Primitive& primitive, const fastgltf::Asset& asset, const std::string_view& attributeName);
@@ -53,9 +55,14 @@ namespace Hush {
 		const fastgltf::Buffer& buffer = asset.buffers[accessorBufferView.bufferIndex];
 		result.reserve(foundAccessor.count);
 		// Calculate the pointer to the start of the position data by using buffer, buffer view, and accessor offsets.
-		const uint8_t* bufferData = GetDataFromBufferSource(buffer);
-		HUSH_ASSERT(bufferData != nullptr, "Could not read the data variant for the buffer, unrecognized data source type?");
-		const BufferType* posData = reinterpret_cast<const BufferType*>(bufferData + accessorBufferView.byteOffset + foundAccessor.byteOffset);
+		Result<const uint8_t*, Error> bufferData = GetDataFromBufferSource(buffer);
+		
+		if (bufferData.has_error()) {
+			LogFormat(ELogLevel::Warn, "{} Error! Could not read the data variant for the buffer", magic_enum::enum_name(bufferData.error()));
+			return std::vector<BufferType>();
+		}
+
+		const BufferType* posData = reinterpret_cast<const BufferType*>(bufferData.value() + accessorBufferView.byteOffset + foundAccessor.byteOffset);
 
 		for (size_t i = 0; i < foundAccessor.count; ++i) {
 			result.push_back(posData[i]);

@@ -95,7 +95,7 @@ Hush::MeshAsset Hush::VulkanLoader::CreateMeshAssetFromGltfMesh(const fastgltf::
 	return resultMesh;
 }
 
-const uint8_t* Hush::VulkanLoader::GetDataFromBufferSource(const fastgltf::Buffer& buffer)
+Hush::Result<const uint8_t*, Hush::Error> Hush::VulkanLoader::GetDataFromBufferSource(const fastgltf::Buffer& buffer)
 {
 	const fastgltf::sources::Vector* vectorData = std::get_if<fastgltf::sources::Vector>(&buffer.data);
 	if (vectorData != nullptr) {
@@ -107,5 +107,5 @@ const uint8_t* Hush::VulkanLoader::GetDataFromBufferSource(const fastgltf::Buffe
 		return reinterpret_cast<const uint8_t*>(byteData->bytes.data());
 	}
 	//Else, idk, we don't recognize this yet
-	return nullptr;
+	return Error::InvalidFile;
 }

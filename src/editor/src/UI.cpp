@@ -8,30 +8,29 @@
 #include "DebugUI.hpp"
 #include "DebugTooltip.hpp"
 
-std::vector<std::unique_ptr<Hush::IEditorPanel>> Hush::UI::S_ACTIVE_PANELS{};
+Hush::UI::UI()
+{
+	this->m_activePanels.push_back(CreatePanel<TitleBarMenuPanel>());
+	this->m_activePanels.push_back(CreatePanel<ScenePanel>());
+	this->m_activePanels.push_back(CreatePanel<HierarchyPanel>());
+	this->m_activePanels.push_back(CreatePanel<ContentPanel>());
+	this->m_activePanels.push_back(CreatePanel<DebugUI>());
+	this->m_activePanels.push_back(CreatePanel<DebugTooltip>());
+}
 
 void Hush::UI::DrawPanels()
 {
     UI::DockSpace();
     UI::DrawPlayButton();
     // NOLINTNEXTLINE
-    for (uint32_t i = 0; i < S_ACTIVE_PANELS.size(); i++)
+    for (uint32_t i = 0; i < this->m_activePanels.size(); i++)
     {
-        S_ACTIVE_PANELS.at(i)->OnRender();
+        this->m_activePanels.at(i)->OnRender();
     }
     ImGui::EndFrame();
 	ImGui::Render();
 }
 
-void Hush::UI::InitializePanels()
-{
-    S_ACTIVE_PANELS.push_back(CreatePanel<TitleBarMenuPanel>());
-    S_ACTIVE_PANELS.push_back(CreatePanel<ScenePanel>());
-    S_ACTIVE_PANELS.push_back(CreatePanel<HierarchyPanel>());
-    S_ACTIVE_PANELS.push_back(CreatePanel<ContentPanel>());
-	S_ACTIVE_PANELS.push_back(CreatePanel<DebugUI>());
-	S_ACTIVE_PANELS.push_back(CreatePanel<DebugTooltip>());
-}
 // NOLINTBEGIN
 #pragma warning(push, 0)
 bool Hush::UI::Spinner(const char *label, float radius, int thickness, const uint32_t &color)
@@ -103,8 +102,9 @@ void Hush::UI::DockSpace()
 
     // When using ImGuiDockNodeFlags_PassthruCentralNode, DockSpace() will render our background
     // and handle the pass-thru hole, so we ask Begin() to not render a background.
-    if (dockspaceFlags & ImGuiDockNodeFlags_PassthruCentralNode)
+    if (dockspaceFlags & ImGuiDockNodeFlags_PassthruCentralNode) {
         window_flags |= ImGuiWindowFlags_NoBackground;
+    }
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::Begin("DockSpace Demo", nullptr, window_flags);
