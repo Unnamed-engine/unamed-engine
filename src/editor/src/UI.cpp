@@ -6,28 +6,31 @@
 #include <imgui/imgui_internal.h>
 #include "ContentPanel.hpp"
 #include "DebugUI.hpp"
+#include "DebugTooltip.hpp"
 
-std::vector<std::unique_ptr<Hush::IEditorPanel>> Hush::UI::S_ACTIVE_PANELS{};
+Hush::UI::UI()
+{
+	this->m_activePanels.push_back(CreatePanel<TitleBarMenuPanel>());
+	this->m_activePanels.push_back(CreatePanel<ScenePanel>());
+	this->m_activePanels.push_back(CreatePanel<HierarchyPanel>());
+	this->m_activePanels.push_back(CreatePanel<ContentPanel>());
+	this->m_activePanels.push_back(CreatePanel<DebugUI>());
+	this->m_activePanels.push_back(CreatePanel<DebugTooltip>());
+}
 
 void Hush::UI::DrawPanels()
 {
     UI::DockSpace();
     UI::DrawPlayButton();
     // NOLINTNEXTLINE
-    for (uint32_t i = 0; i < S_ACTIVE_PANELS.size(); i++)
+    for (uint32_t i = 0; i < this->m_activePanels.size(); i++)
     {
-        S_ACTIVE_PANELS.at(i)->OnRender();
+        this->m_activePanels.at(i)->OnRender();
     }
+    ImGui::EndFrame();
+	ImGui::Render();
 }
 
-void Hush::UI::InitializePanels()
-{
-    S_ACTIVE_PANELS.push_back(CreatePanel<TitleBarMenuPanel>());
-    S_ACTIVE_PANELS.push_back(CreatePanel<ScenePanel>());
-    S_ACTIVE_PANELS.push_back(CreatePanel<HierarchyPanel>());
-    S_ACTIVE_PANELS.push_back(CreatePanel<ContentPanel>());
-    S_ACTIVE_PANELS.push_back(CreatePanel<DebugUI>());
-}
 // NOLINTBEGIN
 #pragma warning(push, 0)
 bool Hush::UI::Spinner(const char *label, float radius, int thickness, const uint32_t &color)
@@ -80,7 +83,7 @@ bool Hush::UI::BeginToolBar()
 }
 void Hush::UI::DockSpace()
 {
-    static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
+    static ImGuiDockNodeFlags dockspaceFlags = ImGuiDockNodeFlags_None | ImGuiDockNodeFlags_PassthruCentralNode;
 
     // We are using the ImGuiWindowFlags_NoDocking flag to make the parent window not dockable into,
     // because it would be confusing to have two docking targets within each others.
@@ -99,8 +102,9 @@ void Hush::UI::DockSpace()
 
     // When using ImGuiDockNodeFlags_PassthruCentralNode, DockSpace() will render our background
     // and handle the pass-thru hole, so we ask Begin() to not render a background.
-    if (dockspace_flags & ImGuiDockNodeFlags_PassthruCentralNode)
+    if (dockspaceFlags & ImGuiDockNodeFlags_PassthruCentralNode) {
         window_flags |= ImGuiWindowFlags_NoBackground;
+    }
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::Begin("DockSpace Demo", nullptr, window_flags);
@@ -108,7 +112,7 @@ void Hush::UI::DockSpace()
     ImGui::PopStyleVar(2);
 
     ImGuiID dockspaceId = ImGui::GetID("HushDockspace");
-    ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), dockspace_flags);
+    ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), dockspaceFlags);
     ImGui::End();
 }
 void Hush::UI::DrawPlayButton()

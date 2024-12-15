@@ -5,6 +5,7 @@
 */
 
 #pragma once
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define VK_NO_PROTOTYPES
 
 #include "Renderer.hpp"
@@ -21,6 +22,8 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 #include "VkDescriptors.hpp"
+#include "GPUMeshBuffers.hpp"
+#include "GPUSceneData.hpp"
 
 ///@brief Double frame buffering, allows for the GPU and CPU to work in parallel. NOTE: increase to 3 if experiencing
 /// jittery framerates
@@ -30,20 +33,21 @@ constexpr uint32_t VK_OPERATION_TIMEOUT_NS = 1'000'000'000; // This is one secon
 
 namespace Hush
 {
+    struct MeshAsset;
 
     class VulkanRenderer final : public IRenderer
     {
-      public:
-        static PFN_vkVoidFunction CustomVulkanFunctionLoader(const char *functionName, void *userData);
+    public:
+        static PFN_vkVoidFunction CustomVulkanFunctionLoader(const char* functionName, void* userData);
         /// @brief Creates a new vulkan renderer from a given window context
         /// @param windowContext opaque pointer to the window context
-        VulkanRenderer(void *windowContext);
+        VulkanRenderer(void* windowContext);
 
-        VulkanRenderer(const VulkanRenderer &) = delete;
-        VulkanRenderer &operator=(const VulkanRenderer &) = delete;
+        VulkanRenderer(const VulkanRenderer&) = delete;
+        VulkanRenderer& operator=(const VulkanRenderer&) = delete;
 
-        VulkanRenderer(VulkanRenderer &&rhs) noexcept;
-        VulkanRenderer &operator=(VulkanRenderer &&rhs) noexcept;
+        VulkanRenderer(VulkanRenderer&& rhs) noexcept;
+        VulkanRenderer& operator=(VulkanRenderer&& rhs) noexcept;
 
         ~VulkanRenderer() override;
 
@@ -59,15 +63,15 @@ namespace Hush
 
         void NewUIFrame() const noexcept override;
 
-        void HandleEvent(const SDL_Event *event) noexcept override;
+        void HandleEvent(const SDL_Event* event) noexcept override;
 
         void Dispose();
 
-        void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)> &&function) noexcept;
+        void ImmediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function) noexcept;
 
-        FrameData &GetCurrentFrame() noexcept;
+        FrameData& GetCurrentFrame() noexcept;
 
-        FrameData &GetLastFrame() noexcept;
+        FrameData& GetLastFrame() noexcept;
 
         /* CONSTANT GETTERS */
 
@@ -79,25 +83,27 @@ namespace Hush
 
         [[nodiscard]] VkQueue GetGraphicsQueue() const noexcept;
 
-        VkFormat *GetSwapchainImageFormat() noexcept;
+        VkFormat* GetSwapchainImageFormat() noexcept;
 
-        [[nodiscard]] void *GetWindowContext() const noexcept override;
+        [[nodiscard]] void* GetWindowContext() const noexcept override;
 
-      private:
+        GPUMeshBuffers UploadMesh(const std::vector<uint32_t>& indices, const std::vector<Vertex>& vertices);
+
+    private:
         void Configure(vkb::Instance vkbInstance);
 
         void CreateSyncObjects();
 
         void DestroySwapChain();
 
-        VkSubmitInfo2 SubmitInfo(VkCommandBufferSubmitInfo *cmd, VkSemaphoreSubmitInfo *signalSemaphoreInfo,
-                                 VkSemaphoreSubmitInfo *waitSemaphoreInfo);
+        VkSubmitInfo2 SubmitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo,
+            VkSemaphoreSubmitInfo* waitSemaphoreInfo);
 
         void LoadDebugMessenger();
 
         static uint32_t LogDebugMessage(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                                        VkDebugUtilsMessageTypeFlagsEXT messageTypes,
-                                        const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
+            VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+            const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
         void InitVmaAllocator();
 
@@ -106,13 +112,17 @@ namespace Hush
         void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout);
 
         void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize,
-                              VkExtent2D dstSize);
+            VkExtent2D dstSize);
 
         void InitDescriptors() noexcept;
 
         void InitPipelines() noexcept;
 
         void InitBackgroundPipelines() noexcept;
+
+        void InitMeshPipeline() noexcept;
+
+        void InitDefaultData() noexcept;
 
         void DrawGeometry(VkCommandBuffer cmd);
 
@@ -124,7 +134,11 @@ namespace Hush
 
         void ResizeSwapchain();
 
-        void InitTrianglePipeline();
+		AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+
+		AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+
+        void DestroyImage(const AllocatedImage& img);
 
         void *m_windowContext;
         // TODO: Send all of these to a custom struct holding the pointers
@@ -144,6 +158,14 @@ namespace Hush
         VkPipelineLayout m_gradientPipelineLayout = nullptr;
 		VkPipelineLayout m_trianglePipelineLayout = nullptr;
 		VkPipeline m_trianglePipeline = nullptr;
+		VkPipelineLayout m_meshPipelineLayout = nullptr;
+		VkPipeline m_meshPipeline = nullptr;
+        GPUSceneData m_sceneData;
+        VkDescriptorSetLayout m_gpuSceneDataDescriptorLayout;
+
+        std::vector<std::shared_ptr<MeshAsset>> testMeshes;
+
+		GPUMeshBuffers m_rectangle;
 
         uint32_t m_graphicsQueueFamily = 0u;
         DescriptorAllocator m_globalDescriptorAllocator{};
@@ -156,6 +178,17 @@ namespace Hush
         uint32_t m_height = 0u;
         // draw resources
         AllocatedImage m_drawImage{};
+        AllocatedImage m_depthImage{};
+
+        // Test stuff
+		AllocatedImage m_whiteImage{};
+		AllocatedImage m_blackImage{};
+		AllocatedImage m_greyImage{};
+        AllocatedImage m_errorCheckerboardImage{};
+        VkDescriptorSetLayout m_singleImageDescriptorLayout;
+
+		VkSampler m_defaultSamplerLinear;
+		VkSampler m_defaultSamplerNearest;
 
         // Frame related data
         std::array<FrameData, FRAME_OVERLAP> m_frames{};

@@ -32,6 +32,8 @@ namespace Hush
         VulkanPipelineBuilder& EnableBlendingAdditive();
         VulkanPipelineBuilder& EnableBlendingAlphaBlend();
         VulkanPipelineBuilder& DisableDepthTest();
+		VulkanPipelineBuilder& EnableDepthTest(bool depthWriteEnable, VkCompareOp op);
+
 
         VulkanPipelineBuilder& SetColorAttachmentFormat(VkFormat format);
         VulkanPipelineBuilder& SetDepthFormat(VkFormat format);
