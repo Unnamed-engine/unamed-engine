@@ -373,9 +373,9 @@ void Hush::VulkanRenderer::InitRendering()
 
     this->InitRenderables();
 
-    this->InitDescriptors();
-
     this->InitDefaultData();
+
+    this->InitDescriptors();
 
     this->InitPipelines();
 }
@@ -740,9 +740,16 @@ void Hush::VulkanRenderer::InitDescriptors() noexcept
     // make the descriptor set layout for our compute draw
     {
         DescriptorLayoutBuilder builder;
-        builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-        this->m_drawImageDescriptorLayout = builder.Build(this->m_device, VK_SHADER_STAGE_COMPUTE_BIT);
+        builder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        this->m_gpuSceneDataDescriptorLayout = builder.Build(this->m_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
     }
+
+	{
+		DescriptorLayoutBuilder builder;
+		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+		this->m_drawImageDescriptorLayout = builder.Build(this->m_device, VK_SHADER_STAGE_COMPUTE_BIT);
+	}
+
     // allocate a descriptor set for our draw images
     this->m_drawImageDescriptors =
         this->m_globalDescriptorAllocator.Allocate(this->m_device, this->m_drawImageDescriptorLayout);
@@ -751,11 +758,33 @@ void Hush::VulkanRenderer::InitDescriptors() noexcept
     writer.WriteImage(0, this->m_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     writer.UpdateSet(this->m_device, this->m_drawImageDescriptors);
 
+	for (int i = 0; i < FRAME_OVERLAP; i++) {
+		// create a descriptor pool
+		std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> frameSizes = {
+			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3 },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 },
+		};
+
+		this->m_frames[i].frameDescriptors = DescriptorAllocatorGrowable{};
+		this->m_frames[i].frameDescriptors.Init(this->m_device, 1000, frameSizes);
+
+		this->m_mainDeletionQueue.PushFunction([&, i]() {
+		    m_frames[i].frameDescriptors.DestroyPool(m_device);
+		});
+	}
+
     // make sure both the descriptor allocator and the new layout get cleaned up properly
     this->m_mainDeletionQueue.PushFunction([&]() {
         m_globalDescriptorAllocator.DestroyPool(m_device);
         vkDestroyDescriptorSetLayout(m_device, m_drawImageDescriptorLayout, nullptr);
     });
+
+	DescriptorLayoutBuilder builder;
+	builder.AddBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+	this->m_singleImageDescriptorLayout = builder.Build(this->m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
+
 }
 
 void Hush::VulkanRenderer::InitPipelines() noexcept
@@ -818,7 +847,7 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
 
 void Hush::VulkanRenderer::InitMeshPipeline() noexcept
 {
-	constexpr std::string_view fragmentShaderPath = "Y:/Programming/C++/Hush-Engine/res/colored_triangle.frag.spv";
+	constexpr std::string_view fragmentShaderPath = "Y:/Programming/C++/Hush-Engine/res/tex_image.frag.spv";
 	constexpr std::string_view vertexShaderPath = "Y:/Programming/C++/Hush-Engine/res/colored_triangle_mesh.vert.spv";
 
 	VkShaderModule triangleFragShader;
@@ -841,6 +870,8 @@ void Hush::VulkanRenderer::InitMeshPipeline() noexcept
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkUtilsFactory::PipelineLayoutCreateInfo();
 	pipelineLayoutInfo.pPushConstantRanges = &bufferRange;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &this->m_singleImageDescriptorLayout;
+	pipelineLayoutInfo.setLayoutCount = 1;
 	VkResult rc = vkCreatePipelineLayout(this->m_device, &pipelineLayoutInfo, nullptr, &this->m_meshPipelineLayout);
 	HUSH_VK_ASSERT(rc, "Failed to create triangle pipeline");
 
@@ -909,10 +940,79 @@ void Hush::VulkanRenderer::InitDefaultData() noexcept
 		m_rectangle.indexBuffer.Dispose(m_allocator);
 		m_rectangle.vertexBuffer.Dispose(m_allocator);
 	});
+
+    // Default images
+	//3 default textures, white, grey, black. 1 pixel each
+	uint32_t white = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
+	m_whiteImage = CreateImage((void*)&white, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_USAGE_SAMPLED_BIT);
+
+	uint32_t grey = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1));
+	m_greyImage = CreateImage((void*)&grey, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_USAGE_SAMPLED_BIT);
+
+	uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
+	m_blackImage = CreateImage((void*)&black, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_USAGE_SAMPLED_BIT);
+
+	//checkerboard image
+	uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
+	std::array<uint32_t, 16 * 16 > pixels; //for 16x16 checkerboard texture
+	for (int x = 0; x < 16; x++) {
+		for (int y = 0; y < 16; y++) {
+			pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+		}
+	}
+	m_errorCheckerboardImage = CreateImage(pixels.data(), VkExtent3D{ 16, 16, 1 }, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_USAGE_SAMPLED_BIT);
+
+	VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+
+	sampl.magFilter = VK_FILTER_NEAREST;
+	sampl.minFilter = VK_FILTER_NEAREST;
+
+	vkCreateSampler(m_device, &sampl, nullptr, &m_defaultSamplerNearest);
+
+	sampl.magFilter = VK_FILTER_LINEAR;
+	sampl.minFilter = VK_FILTER_LINEAR;
+	vkCreateSampler(m_device, &sampl, nullptr, &m_defaultSamplerLinear);
+
+	this->m_mainDeletionQueue.PushFunction([&]() {
+		vkDestroySampler(m_device, m_defaultSamplerNearest, nullptr);
+		vkDestroySampler(m_device, m_defaultSamplerLinear, nullptr);
+
+		DestroyImage(m_whiteImage);
+		DestroyImage(m_greyImage);
+		DestroyImage(m_blackImage);
+		DestroyImage(m_errorCheckerboardImage);
+	});
+
 }
 
 void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 {
+	////allocate a new uniform buffer for the scene data
+	//VulkanAllocatedBuffer gpuSceneDataBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, this->m_allocator);
+    //
+	////add it to the deletion queue of this frame so it gets deleted once its been used
+	//this->GetCurrentFrame().deletionQueue.PushFunction([&, this]() {
+	//	    gpuSceneDataBuffer.Dispose(m_allocator);
+	//});
+    //
+	////write the buffer
+	//GPUSceneData* sceneUniformData = (GPUSceneData*)gpuSceneDataBuffer.GetAllocation()->GetMappedData();
+	//*sceneUniformData = this->m_sceneData;
+
+	//create a descriptor set that binds that buffer and update it
+	//VkDescriptorSet globalDescriptor = this->GetCurrentFrame().frameDescriptors.Allocate(this->m_device, this->m_gpuSceneDataDescriptorLayout);
+    
+    // Local scope to use another writer later one
+    //{
+	//    DescriptorWriter writer;
+	//    writer.WriteBuffer(0, gpuSceneDataBuffer.GetBuffer(), sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	//    writer.UpdateSet(this->m_device, globalDescriptor);
+    //}
+
 	//begin a render pass  connected to our draw image
 	VkRenderingAttachmentInfo colorAttachment = VkUtilsFactory::CreateAttachmentInfoWithLayout(
         this->m_drawImage.imageView, 
@@ -954,26 +1054,32 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, this->m_meshPipeline);
 
+	VkDescriptorSet imageSet = this->GetCurrentFrame().frameDescriptors.Allocate(this->m_device, this->m_singleImageDescriptorLayout);
+    {
+        DescriptorWriter writer;
+	    writer.WriteImage(0, this->m_errorCheckerboardImage.imageView, this->m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+	    writer.UpdateSet(this->m_device, imageSet);
+    }
+
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
+
+
+
 	GPUDrawPushConstants pushContants;
 
     glm::vec3 scale = DebugTooltip::s_debugTooltip == nullptr ? glm::vec3{0.0f} : DebugTooltip::s_debugTooltip->GetScale();
-    //Draw the mesh
-    scale.y *= -1;
+
+    glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), scale);
+
+    glm::mat4 view = glm::translate(glm::vec3{ 0,0,-5 }) * scaleMat;
 	// camera projection
-	glm::mat4 scaleMatrix = glm::scale(glm::mat4(1.0f), scale);
+	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)this->m_width / (float)this->m_width, 10000.f, 0.1f);
 
-	// Create translation matrix
-	glm::mat4 translateMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
-
-	// Combine matrices: Scale * Translate (order matters!)
-	glm::mat4 modelMatrix = translateMatrix * scaleMatrix;
-
-	// If you have view and projection matrices
-	glm::mat4 viewMatrix = glm::mat4(1.0f);
-	glm::mat4 projectionMatrix = glm::mat4(1.0f);
-
+	// invert the Y direction on projection matrix so that we are more similar
+	// to opengl and gltf axis
+	projection[1][1] *= -1;
 	// Compute final transform matrix
-	pushContants.worldMatrix = projectionMatrix * viewMatrix * modelMatrix;
+	pushContants.worldMatrix = projection * view;
 
     const std::shared_ptr<MeshAsset>& meshToDraw = testMeshes[0];
 	//< matview
@@ -1028,6 +1134,7 @@ VkCommandBuffer Hush::VulkanRenderer::PrepareCommandBuffer(FrameData& currentFra
     VkResult rc =
         vkWaitForFences(this->m_device, fenceTargetCount, &currentFrame.renderFence, true, VK_OPERATION_TIMEOUT_NS);
     currentFrame.deletionQueue.Flush();
+    currentFrame.frameDescriptors.ClearPool(this->m_device);
 	HUSH_VK_ASSERT(rc, "Fence wait failed!");
 
     // Request an image from the swapchain
@@ -1071,6 +1178,83 @@ void Hush::VulkanRenderer::ResizeSwapchain()
     SDL_GetWindowSize(static_cast<SDL_Window*>(this->m_windowContext), &width, &height);
     this->CreateSwapChain(width, height);
     this->m_resizeRequested = false;
+}
+
+AllocatedImage Hush::VulkanRenderer::CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped /*= false*/)
+{
+	AllocatedImage newImage;
+	newImage.imageFormat = format;
+	newImage.imageExtent = size;
+
+	VkImageCreateInfo imgInfo = VkUtilsFactory::CreateImageCreateInfo(format, usage, size);
+	if (mipmapped) {
+		imgInfo.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(size.width, size.height)))) + 1;
+	}
+
+	// always allocate images on dedicated GPU memory
+	VmaAllocationCreateInfo allocinfo = {};
+	allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	// allocate and create the image
+	VkResult rc = vmaCreateImage(this->m_allocator, &imgInfo, &allocinfo, &newImage.image, &newImage.allocation, nullptr);
+    HUSH_VK_ASSERT(rc, "Failed to create Image through 3D extent");
+
+	// if the format is a depth format, we will need to have it use the correct
+	// aspect flag
+	VkImageAspectFlags aspectFlag = VK_IMAGE_ASPECT_COLOR_BIT;
+	if (format == VK_FORMAT_D32_SFLOAT) {
+		aspectFlag = VK_IMAGE_ASPECT_DEPTH_BIT;
+	}
+
+	// build a image-view for the image
+	VkImageViewCreateInfo viewInfo = VkUtilsFactory::CreateImageViewCreateInfo(format, newImage.image, aspectFlag);
+	viewInfo.subresourceRange.levelCount = imgInfo.mipLevels;
+
+	HUSH_VK_ASSERT(vkCreateImageView(this->m_device, &viewInfo, nullptr, &newImage.imageView), "Failed to create image view!");
+
+	return newImage;
+}
+
+void Hush::VulkanRenderer::DestroyImage(const AllocatedImage& img)
+{
+	vkDestroyImageView(this->m_device, img.imageView, nullptr);
+	vmaDestroyImage(this->m_allocator, img.image, img.allocation);
+}
+
+AllocatedImage Hush::VulkanRenderer::CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped /*= false*/)
+{
+    
+	uint32_t dataSize = size.depth * size.width * size.height * 4;
+	VulkanAllocatedBuffer uploadbuffer(dataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, this->m_allocator);
+
+	memcpy(uploadbuffer.GetAllocationInfo().pMappedData, data, dataSize);
+
+	AllocatedImage newImage = this->CreateImage(size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
+
+	this->ImmediateSubmit([&](VkCommandBuffer cmd) {
+		TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+		VkBufferImageCopy copyRegion = {};
+		copyRegion.bufferOffset = 0;
+		copyRegion.bufferRowLength = 0;
+		copyRegion.bufferImageHeight = 0;
+
+		copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copyRegion.imageSubresource.mipLevel = 0;
+		copyRegion.imageSubresource.baseArrayLayer = 0;
+		copyRegion.imageSubresource.layerCount = 1;
+		copyRegion.imageExtent = size;
+
+		// copy the buffer into the image
+		vkCmdCopyBufferToImage(cmd, uploadbuffer.GetBuffer(), newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+			&copyRegion);
+
+		TransitionImage(cmd, newImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		});
+    uploadbuffer.Dispose(this->m_allocator);
+
+	return newImage;
 }
 
 Hush::GPUMeshBuffers Hush::VulkanRenderer::UploadMesh(const std::vector<uint32_t>& indices, const std::vector<Vertex>& vertices)

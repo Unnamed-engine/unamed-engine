@@ -16,7 +16,7 @@ namespace Hush {
 		const glm::vec3& GetTranslation() const;
 
 	private:
-		glm::vec3 m_scale{1.0f};
+		glm::vec3 m_scale{0.5f};
 		glm::vec3 m_rotation;
 		glm::vec3 m_translation;
 	};

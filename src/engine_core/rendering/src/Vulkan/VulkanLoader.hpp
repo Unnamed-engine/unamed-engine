@@ -28,6 +28,11 @@ namespace Hush {
 	class VulkanRenderer;
 
 	class VulkanLoader {
+		
+		enum class Error {
+			None,
+			InvalidMeshFile
+		};
 
 	public:
 		static std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath);
