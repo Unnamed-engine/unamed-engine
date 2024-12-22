@@ -7,6 +7,7 @@ add_subdirectory(log)
 add_subdirectory(rendering)
 add_subdirectory(utils)
 add_subdirectory(scripting)
+add_subdirectory(resources)
 
 add_library(HushEngine STATIC
         src/main.cpp
@@ -27,6 +28,7 @@ set(ENGINE_LIBS
         HushRendering
         HushUtils
         HushCSharp
+        HushResource
 )
 
 if (WIN32)

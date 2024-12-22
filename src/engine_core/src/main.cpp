@@ -1,15 +1,27 @@
 #include "HushEngine.hpp"
-#include "Assertions.hpp"
-#include <memory>
 
-#include "Logger.hpp"
+#include <FileSystem.hpp>
+#include <VirtualFilesystem.hpp>
+#include <filesystem/CFileSystem.hpp>
 
 int main()
 {
-    Hush::HushEngine engine;
+    Hush::VirtualFilesystem vfs;
 
-    engine.Run();
+    vfs.MountFileSystem<Hush::CFileSystem>("res://", ".");
 
-    engine.Quit();
+    auto fileData = vfs.ReadFile("res://vcpkg.json");
+
+    if (!fileData)
+    {
+        std::cerr << "Failed to read file data" << std::endl;
+        return 1;
+    }
+
+    // Hush::HushEngine engine;
+    //
+    // engine.Run();
+    //
+    // engine.Quit();
     return 0;
 }

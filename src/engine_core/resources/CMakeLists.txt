@@ -1,0 +1,13 @@
+# Resource classes and resource manager-things.
+
+
+add_library(HushResource OBJECT
+        src/filesystem/CFileSystem.cpp
+        src/VirtualFilesystem.cpp
+)
+
+target_include_directories(HushResource PUBLIC src)
+
+target_link_libraries(HushResource PUBLIC HushUtils HushLog)
+
+set_all_warnings(HushResource)
