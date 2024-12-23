@@ -274,6 +274,7 @@ void Hush::VulkanRenderer::Draw()
 {
     if (this->m_resizeRequested) {
         this->ResizeSwapchain();
+        return;
     }
     //Prepare and flush the render command
     FrameData &currentFrame = this->GetCurrentFrame();
@@ -285,9 +286,9 @@ void Hush::VulkanRenderer::Draw()
     }
 
     VkImage currentImage = this->m_swapchainImages.at(swapchainImageIndex);
-    
+
     this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    //this->DrawBackground(cmd);
+    this->DrawBackground(cmd);
     //Transition
 	this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	this->TransitionImage(cmd, this->m_depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
@@ -463,6 +464,21 @@ VkInstance Hush::VulkanRenderer::GetVulkanInstance() noexcept
 VkDevice Hush::VulkanRenderer::GetVulkanDevice() noexcept
 {
     return this->m_device;
+}
+
+VkDescriptorSetLayout Hush::VulkanRenderer::GetGpuSceneDataDescriptorLayout() noexcept
+{
+    return this->m_gpuSceneDataDescriptorLayout;
+}
+
+const AllocatedImage& Hush::VulkanRenderer::GetDrawImage() const noexcept
+{
+    return this->m_drawImage;
+}
+
+const AllocatedImage& Hush::VulkanRenderer::GetDepthImage() const noexcept
+{
+    return this->m_depthImage;
 }
 
 VkPhysicalDevice Hush::VulkanRenderer::GetVulkanPhysicalDevice() const noexcept
@@ -733,9 +749,9 @@ void Hush::VulkanRenderer::CopyImageToImage(VkCommandBuffer cmd, VkImage source,
 void Hush::VulkanRenderer::InitDescriptors() noexcept
 {
     // create a descriptor pool that will hold 10 sets with 1 image each
-    std::vector<DescriptorAllocator::PoolSizeRatio> sizes = {{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1}};
+    std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes = {{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1}};
 
-    this->m_globalDescriptorAllocator.InitPool(volkGetLoadedDevice(), 10, sizes);
+    this->m_globalDescriptorAllocator.Init(volkGetLoadedDevice(), 10, sizes);
 
     // make the descriptor set layout for our compute draw
     {
@@ -791,6 +807,10 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
 {
     this->InitBackgroundPipelines();
     this->InitMeshPipeline();
+
+	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.frag";
+	constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.vert";
+    this->m_metalRoughMaterial.BuildPipelines(this, fragmentShaderPath, vertexShaderPath);
 }
 
 void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
@@ -987,6 +1007,40 @@ void Hush::VulkanRenderer::InitDefaultData() noexcept
 		DestroyImage(m_errorCheckerboardImage);
 	});
 
+	GLTFMetallicRoughness::MaterialResources materialResources;
+	//default the material textures
+	materialResources.colorImage = this->m_whiteImage;
+	materialResources.colorSampler = this->m_defaultSamplerLinear;
+	materialResources.metalRoughImage = this->m_whiteImage;
+	materialResources.metalRoughSampler = this->m_defaultSamplerLinear;
+
+	//set the uniform buffer for the material data
+	VulkanAllocatedBuffer materialConstants = VulkanAllocatedBuffer(
+        sizeof(GLTFMetallicRoughness::MaterialConstants), 
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+        VMA_MEMORY_USAGE_CPU_TO_GPU, 
+        this->m_allocator
+    );
+
+	//write the buffer
+	auto* sceneUniformData = static_cast<GLTFMetallicRoughness::MaterialConstants*>(materialConstants.GetAllocation()->GetMappedData());
+	sceneUniformData->colorFactors = glm::vec4{ 1,1,1,1 };
+	sceneUniformData->metal_rough_factors = glm::vec4{ 1,0.5,0,0 };
+
+    this->m_mainDeletionQueue.PushFunction([&] {
+        materialConstants.Dispose(m_allocator);
+    });
+
+	materialResources.dataBuffer = materialConstants.GetBuffer();
+	materialResources.dataBufferOffset = 0;
+
+	this->m_defaultData = this->m_metalRoughMaterial.WriteMaterial(
+        this->m_device,
+        EMaterialPass::MainColor, 
+        materialResources, 
+        this->m_globalDescriptorAllocator
+    );
+
 }
 
 void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
@@ -1172,6 +1226,7 @@ void Hush::VulkanRenderer::ResizeSwapchain()
 {
     this->m_uiForwarder->EndFrame();
     vkDeviceWaitIdle(this->m_device);
+    vkQueueWaitIdle(this->m_graphicsQueue);
     this->DestroySwapChain();
     //Defer this to the WindowRenderer interface instead of SDL
     int32_t width, height;

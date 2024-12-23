@@ -7,6 +7,7 @@ add_executable(HushEditor
         src/ScenePanel.cpp
         src/TitleBarMenuPanel.cpp
         src/UI.cpp
+        src/DebugTooltip.cpp
         src/EditorApp.cpp
 )
 

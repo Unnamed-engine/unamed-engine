@@ -24,7 +24,7 @@ namespace Hush
         IRenderer &operator=(const IRenderer &) = delete;
         IRenderer(IRenderer &&) = delete;
         IRenderer &operator=(IRenderer &&) = delete;
-
+    
         virtual ~IRenderer() = default;
 
         virtual void CreateSwapChain(uint32_t width, uint32_t height) = 0;

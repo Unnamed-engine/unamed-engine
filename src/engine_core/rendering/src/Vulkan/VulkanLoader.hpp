@@ -7,7 +7,6 @@
 #include "GPUMeshBuffers.hpp"
 #include <fastgltf/types.hpp>
 #include <Result.hpp>
-#include "Error.hpp"
 
 
 namespace Hush {
@@ -15,6 +14,7 @@ namespace Hush {
 	struct GeoSurface {
 		uint32_t startIndex;
 		uint32_t count;
+		std::shared_ptr<VkMaterialInstance> material;
 	};
 
 	struct MeshAsset {

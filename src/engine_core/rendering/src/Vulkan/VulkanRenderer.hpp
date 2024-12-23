@@ -24,6 +24,7 @@
 #include "VkDescriptors.hpp"
 #include "GPUMeshBuffers.hpp"
 #include "GPUSceneData.hpp"
+#include "GltfMetallicRoughness.hpp"
 
 ///@brief Double frame buffering, allows for the GPU and CPU to work in parallel. NOTE: increase to 3 if experiencing
 /// jittery framerates
@@ -78,6 +79,12 @@ namespace Hush
         [[nodiscard]] VkInstance GetVulkanInstance() noexcept;
 
         [[nodiscard]] VkDevice GetVulkanDevice() noexcept;
+
+        [[nodiscard]] VkDescriptorSetLayout GetGpuSceneDataDescriptorLayout() noexcept;
+
+        [[nodiscard]] const AllocatedImage& GetDrawImage() const noexcept;
+
+        [[nodiscard]] const AllocatedImage& GetDepthImage() const noexcept;
 
         [[nodiscard]] VkPhysicalDevice GetVulkanPhysicalDevice() const noexcept;
 
@@ -168,12 +175,14 @@ namespace Hush
 		GPUMeshBuffers m_rectangle;
 
         uint32_t m_graphicsQueueFamily = 0u;
-        DescriptorAllocator m_globalDescriptorAllocator{};
+        DescriptorAllocatorGrowable m_globalDescriptorAllocator{};
 
         VkFormat m_swapchainImageFormat = VkFormat::VK_FORMAT_UNDEFINED;
         std::vector<VkImage> m_swapchainImages{};
         std::vector<VkImageView> m_swapchainImageViews{};
         VkExtent2D m_swapChainExtent{};
+        VkExtent2D m_drawExtent{};
+        float m_renderScale = 1.0f;
         uint32_t m_width = 0u;
         uint32_t m_height = 0u;
         // draw resources
@@ -186,6 +195,9 @@ namespace Hush
 		AllocatedImage m_greyImage{};
         AllocatedImage m_errorCheckerboardImage{};
         VkDescriptorSetLayout m_singleImageDescriptorLayout;
+
+		VkMaterialInstance m_defaultData;
+		GLTFMetallicRoughness m_metalRoughMaterial;
 
 		VkSampler m_defaultSamplerLinear;
 		VkSampler m_defaultSamplerNearest;
