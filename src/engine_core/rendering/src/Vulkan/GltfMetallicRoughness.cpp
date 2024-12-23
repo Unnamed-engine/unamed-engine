@@ -2,6 +2,7 @@
 #include "VulkanRenderer.hpp"
 #include "VulkanPipelineBuilder.hpp"
 #include "VkUtilsFactory.hpp"
+#include "VkMaterialInstance.hpp"
 
 void Hush::GLTFMetallicRoughness::BuildPipelines(IRenderer* engine, const std::string_view& fragmentShaderPath, const std::string_view& vertexShaderPath)
 {
@@ -78,9 +79,9 @@ void Hush::GLTFMetallicRoughness::BuildPipelines(IRenderer* engine, const std::s
 
 }
 
-VkMaterialInstance Hush::GLTFMetallicRoughness::WriteMaterial(VkDevice device, EMaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator)
+Hush::VkMaterialInstance Hush::GLTFMetallicRoughness::WriteMaterial(VkDevice device, EMaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator)
 {
-	VkMaterialInstance matData;
+	Hush::VkMaterialInstance matData;
 	matData.passType = pass;
 	if (pass == EMaterialPass::Transparent) {
 		matData.pipeline = &transparentPipeline;

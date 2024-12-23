@@ -7,6 +7,7 @@
 #include "GPUMeshBuffers.hpp"
 #include <fastgltf/types.hpp>
 #include <Result.hpp>
+#include "VkMaterialInstance.hpp"
 
 
 namespace Hush {
