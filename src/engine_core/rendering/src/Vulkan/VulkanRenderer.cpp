@@ -374,11 +374,12 @@ void Hush::VulkanRenderer::InitRendering()
 
     this->InitRenderables();
 
-    this->InitDefaultData();
-
     this->InitDescriptors();
 
     this->InitPipelines();
+
+    // Must be called after the pipelines and descriptors are initialized
+    this->InitDefaultData();
 }
 
 void Hush::VulkanRenderer::Dispose()
@@ -808,8 +809,8 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
     this->InitBackgroundPipelines();
     this->InitMeshPipeline();
 
-	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.frag";
-	constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.vert";
+	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.frag.spv";
+	constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.vert.spv";
     this->m_metalRoughMaterial.BuildPipelines(this, fragmentShaderPath, vertexShaderPath);
 }
 

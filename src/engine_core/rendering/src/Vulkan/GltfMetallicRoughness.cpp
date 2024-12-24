@@ -1,3 +1,7 @@
+
+//NOTE: Keep volk at the top to avoid function redefinitions with Vulkan
+#include <volk.h>
+#include "GltfMetallicRoughness.hpp"
 #include "GltfMetallicRoughness.hpp"
 #include "VulkanRenderer.hpp"
 #include "VulkanPipelineBuilder.hpp"
@@ -79,26 +83,7 @@ void Hush::GLTFMetallicRoughness::BuildPipelines(IRenderer* engine, const std::s
 
 }
 
-Hush::VkMaterialInstance Hush::GLTFMetallicRoughness::WriteMaterial(VkDevice device, EMaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator)
+void Hush::GLTFMetallicRoughness::ClearResources(VkDevice device)
 {
-	Hush::VkMaterialInstance matData;
-	matData.passType = pass;
-	if (pass == EMaterialPass::Transparent) {
-		matData.pipeline = &transparentPipeline;
-	}
-	else {
-		matData.pipeline = &opaquePipeline;
-	}
-
-	matData.materialSet = descriptorAllocator.Allocate(device, materialLayout);
-
-
-	writer.Clear();
-	writer.WriteBuffer(0, resources.dataBuffer, sizeof(MaterialConstants), resources.dataBufferOffset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-	writer.WriteImage(1, resources.colorImage.imageView, resources.colorSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-	writer.WriteImage(2, resources.metalRoughImage.imageView, resources.metalRoughSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-
-	writer.UpdateSet(device, matData.materialSet);
-
-	return matData;
+	(void)device;
 }
