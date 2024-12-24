@@ -61,17 +61,7 @@ namespace Hush
 
         std::vector<std::string_view> ListPath(std::string_view virtualPath, EListOptions options = EListOptions::None);
 
-        Result<std::span<std::byte>, EError> ReadFile(std::string_view virtualPath);
-
-        Result<void, EError> WriteFile(std::string_view virtualPath, std::span<std::byte> data);
-
-        Result<void, EError> DeleteFile(std::string_view virtualPath);
-
-        Result<void, EError> CreateDirectory(std::string_view virtualPath);
-
-        Result<void, EError> DeleteDirectory(std::string_view virtualPath);
-
-        Result<void, EError> CreateFile(std::string_view virtualPath);
+        Result<std::unique_ptr<IFile>, IFile::EError> OpenFile(std::string_view virtualPath, EFileOpenMode mode = EFileOpenMode::Read);
 
         template <class T, class... Args> void MountFileSystem(std::string_view path, Args &&...args)
         {

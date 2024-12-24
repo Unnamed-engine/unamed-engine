@@ -2,8 +2,10 @@
 
 
 add_library(HushResource OBJECT
-        src/filesystem/CFileSystem.cpp
+        src/filesystem/CFileSystem/CFileSystem.cpp
+        src/filesystem/CFileSystem/CFile.cpp
         src/VirtualFilesystem.cpp
+        src/IFile.cpp
 )
 
 target_include_directories(HushResource PUBLIC src)

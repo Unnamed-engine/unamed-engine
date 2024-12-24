@@ -11,4 +11,9 @@ namespace Hush
 {
     template <typename T, typename E>
     using Result = outcome_v2::result<T, E>;
+
+    inline auto Success()
+    {
+        return outcome_v2::success();
+    }
 };

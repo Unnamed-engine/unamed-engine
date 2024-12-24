@@ -5,11 +5,11 @@
 */
 
 #pragma once
-#include "../FileSystem.hpp"
+#include "FileSystem.hpp"
 #include <cstdio>
-#include <unordered_map>
-#include <string>
 #include <filesystem>
+#include <string>
+#include <unordered_map>
 
 namespace Hush
 {
@@ -37,18 +37,9 @@ namespace Hush
 
         ~CFileSystem() override = default;
 
-        /// Loads data from a specific source
-        /// @param path Path of the resource to load.
-        /// @return A result with the raw data.
-        Result<std::span<std::byte>, EError> LoadData(std::string_view path) override;
-
-        /// Loads data and calls a callback.
-        /// This doesn't implement async, it only calls loadData.
-        /// @param path Path of the resource to load.
-        /// @param callback Function to be called when the resource is loaded
-        void LoadDataAsync(std::string_view path, AsyncCallback callback) override;
-
-        void UnloadData(std::span<std::byte> data) override;
+        Result<std::unique_ptr<IFile>, IFile::EError> OpenFile(std::filesystem::path vfsPath,
+                                                               std::filesystem::path path,
+                                                               EFileOpenMode mode) override;
 
       private:
         std::filesystem::path mRoot;

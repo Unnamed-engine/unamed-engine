@@ -6,6 +6,7 @@
 
 #include "VirtualFilesystem.hpp"
 
+#include <Logger.hpp>
 #include <ranges>
 
 Hush::VirtualFilesystem::VirtualFilesystem() = default;
@@ -29,9 +30,12 @@ Hush::VirtualFilesystem &Hush::VirtualFilesystem::operator=(VirtualFilesystem &&
 void Hush::VirtualFilesystem::Unmount(std::string_view virtualPath)
 {
     m_mountedFileSystems.erase(
-        std::remove_if(m_mountedFileSystems.begin(), m_mountedFileSystems.end(),
-                       [&](const MountPoint &mountPoint) { return mountPoint.path == virtualPath; }));
+        std::ranges::remove_if(m_mountedFileSystems,
+                               [&](const MountPoint &mountPoint) { return mountPoint.path == virtualPath; })
+            .begin(),
+        m_mountedFileSystems.end());
 }
+
 std::vector<std::string_view> Hush::VirtualFilesystem::ListPath(std::string_view virtualPath, EListOptions options)
 {
     (void)virtualPath;
@@ -39,25 +43,24 @@ std::vector<std::string_view> Hush::VirtualFilesystem::ListPath(std::string_view
     return {};
 }
 
-Hush::Result<std::span<std::byte>, Hush::VirtualFilesystem::EError> Hush::VirtualFilesystem::ReadFile(
-    std::string_view virtualPath)
+Hush::Result<std::unique_ptr<Hush::IFile>, Hush::IFile::EError> Hush::VirtualFilesystem::OpenFile(
+    std::string_view virtualPath, EFileOpenMode mode)
 {
     auto resolved = ResolveFileSystem(virtualPath);
+
     if (!resolved)
     {
-        return EError::FileDoesntExist;
+        LogFormat(ELogLevel::Debug, "Mount point for {} not found", virtualPath);
+        return IFile::EError::FileDoesntExist;
     }
+
+    // Open the file
     auto &filesystem = resolved->filesystem;
     auto &path = resolved->path;
 
-    auto data = filesystem->LoadData(path);
+    auto file = filesystem->OpenFile(virtualPath, path, mode);
 
-    if (!data)
-    {
-        return EError::FileDoesntExist;
-    }
-
-    return data.assume_value();
+    return file;
 }
 
 void Hush::VirtualFilesystem::MountFileSystemInternal(std::string_view path,

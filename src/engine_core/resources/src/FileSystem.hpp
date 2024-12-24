@@ -5,11 +5,13 @@
 */
 
 #pragma once
+#include "IFile.hpp"
 #include "Result.hpp"
+
 #include <cstddef>
 #include <functional>
-#include <string_view>
 #include <span>
+#include <string_view>
 
 namespace Hush
 {
@@ -42,21 +44,12 @@ namespace Hush
 
         virtual ~IFileSystem() = default;
 
-        /// Loads data from a specific path.
-        /// Pointer is non owning, this means that it should be freed by the instance who created it.
-        /// @param path Path of the resource to load
-        /// @return A result with a pointer to the bytes of the resource.
-        virtual Result<std::span<std::byte>, EError> LoadData(std::string_view path) = 0;
-
-        /// Loads data from a specific path in an async way. The way it is loaded is defined by the resource loader.
-        /// Some might use other threads, other might use something like Windows Overlapped I/O or epoll on Linux.
-        /// Pointer is non owning, this means that it should be freed by the instance who created it.
-        /// @param path Path of the resource to load.
-        /// @param callback Callback to be called when the resource is loaded. The parameter is as result/
-        virtual void LoadDataAsync(std::string_view path, AsyncCallback callback) = 0;
-
-        /// Unloads a specific pointer.
-        /// @param data Data to unload
-        virtual void UnloadData(std::span<std::byte> data) = 0;
+        /// Opens a file from a specific path.
+        /// @param path Path of the file to open
+        /// @param mode Mode to open the file
+        /// @return A result with a pointer to the file.
+        virtual Result<std::unique_ptr<IFile>, IFile::EError> OpenFile(std::filesystem::path vfs_path,
+                                                                       std::filesystem::path path,
+                                                                       EFileOpenMode mode = EFileOpenMode::Read) = 0;
     };
 } // namespace Hush
