@@ -25,6 +25,7 @@
 #include "GPUMeshBuffers.hpp"
 #include "GPUSceneData.hpp"
 #include "GltfMetallicRoughness.hpp"
+#include "VkRenderObject.hpp"
 
 ///@brief Double frame buffering, allows for the GPU and CPU to work in parallel. NOTE: increase to 3 if experiencing
 /// jittery framerates
@@ -188,6 +189,8 @@ namespace Hush
         // draw resources
         AllocatedImage m_drawImage{};
         AllocatedImage m_depthImage{};
+
+        std::vector<VkRenderObject> m_mainDrawContext;
 
         // Test stuff
 		AllocatedImage m_whiteImage{};
