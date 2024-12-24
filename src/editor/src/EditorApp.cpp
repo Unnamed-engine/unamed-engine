@@ -23,7 +23,6 @@ class EditorApp final : public Hush::IApplication
 
     void Init() override
     {
-        Hush::UI::InitializePanels();
     }
 
     void Update() override
@@ -33,7 +32,7 @@ class EditorApp final : public Hush::IApplication
 
     void OnRender() override
     {
-        Hush::UI::DrawPanels();
+        this->userInterface.DrawPanels();
     }
 
     void OnPostRender() override
@@ -44,6 +43,9 @@ class EditorApp final : public Hush::IApplication
     void OnPreRender() override
     {
     }
+private:
+	Hush::UI userInterface;
+
 };
 
 extern "C" bool BundledAppExists_Internal_() // NOLINT(*-identifier-naming)

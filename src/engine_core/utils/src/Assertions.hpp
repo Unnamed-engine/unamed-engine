@@ -24,6 +24,7 @@
 #endif
 #endif
 
+
 // TODO: Add debug condition
 // NOLINTNEXTLINE
 #define HUSH_ASSERT(condition, fmtFormat, ...)                                                                         \
@@ -32,5 +33,9 @@
         Hush::LogFormat(Hush::ELogLevel::Critical, "Assertion error! " fmtFormat, ##__VA_ARGS__);                      \
         HUSH_DEBUG_BREAK;                                                                                              \
     }
+
+#define HUSH_RESULT_ASSERT(result, message, ...) \
+HUSH_ASSERT(!result.has_error(), "{} error: {}", message, magic_enum::enum_name(result.error()))
+
 
 #define HUSH_STATIC_ASSERT(condition) static_assert(condition)

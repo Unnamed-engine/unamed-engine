@@ -283,6 +283,21 @@ class VkUtilsFactory
 		info.pPushConstantRanges = nullptr;
 		return info;
     }
+	static VkRenderingAttachmentInfo DepthAttachmentInfo(
+		VkImageView view, VkImageLayout layout)
+	{
+		VkRenderingAttachmentInfo depthAttachment{};
+		depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		depthAttachment.pNext = nullptr;
+
+		depthAttachment.imageView = view;
+		depthAttachment.imageLayout = layout;
+		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depthAttachment.clearValue.depthStencil.depth = 0.f;
+
+		return depthAttachment;
+	}
 
   private:
     static constexpr inline std::string_view MAIN_SHADER_ENTRY = "main";
