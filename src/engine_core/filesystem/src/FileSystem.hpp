@@ -48,7 +48,7 @@ namespace Hush
         /// @param path Path of the file to open
         /// @param mode Mode to open the file
         /// @return A result with a pointer to the file.
-        virtual Result<std::unique_ptr<IFile>, IFile::EError> OpenFile(std::filesystem::path vfs_path,
+        virtual Result<std::unique_ptr<IFile>, IFile::EError> OpenFile(std::filesystem::path vfsPath,
                                                                        std::filesystem::path path,
                                                                        EFileOpenMode mode = EFileOpenMode::Read) = 0;
     };

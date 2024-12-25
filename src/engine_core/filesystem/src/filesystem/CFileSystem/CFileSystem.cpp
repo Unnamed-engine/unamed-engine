@@ -32,13 +32,13 @@ Hush::Result<std::unique_ptr<Hush::IFile>, Hush::IFile::EError> Hush::CFileSyste
         modeStr = {'r', '+', 'b', '\0'};
     }
 
-    const auto real_path = mRoot / path;
+    const std::filesystem::path realPath = mRoot / path;
 
     FILE *file = nullptr;
 
-    const auto real_path_str = real_path.generic_string();
+    const auto realPathStr = realPath.generic_string();
 
-    if (auto error = fopen_s(&file, real_path_str.c_str(), modeStr.data()); error != 0)
+    if (const errno_t error = fopen_s(&file, realPathStr.c_str(), modeStr.data()); error != 0)
     {
         // TODO: cover all the errors.
         LogFormat(ELogLevel::Debug, "Error opening file: {}", error);
@@ -54,7 +54,7 @@ Hush::Result<std::unique_ptr<Hush::IFile>, Hush::IFile::EError> Hush::CFileSyste
 
     // Get last modified
     struct stat result{};
-    if (stat(real_path_str.c_str(), &result) != 0)
+    if (stat(realPathStr.c_str(), &result) != 0)
     {
         return IFile::EError::OperationNotSupported;
     }
