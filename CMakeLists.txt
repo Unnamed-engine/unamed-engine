@@ -11,6 +11,8 @@ project(Hush)
 
 set(CMAKE_CXX_STANDARD 20)
 
+include(CTest)
+
 add_subdirectory(src)
 
 add_subdirectory(third_party/coreclr)

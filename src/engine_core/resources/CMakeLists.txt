@@ -2,14 +2,11 @@
 
 
 add_library(HushResource OBJECT
-        src/filesystem/CFileSystem/CFileSystem.cpp
-        src/filesystem/CFileSystem/CFile.cpp
-        src/VirtualFilesystem.cpp
-        src/IFile.cpp
+        src/ResourceManager.cpp
 )
 
 target_include_directories(HushResource PUBLIC src)
 
-target_link_libraries(HushResource PUBLIC HushUtils HushLog)
+target_link_libraries(HushResource PUBLIC HushUtils HushLog HushFilesystem)
 
 set_all_warnings(HushResource)

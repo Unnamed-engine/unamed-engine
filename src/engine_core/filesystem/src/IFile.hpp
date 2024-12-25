@@ -82,6 +82,9 @@ namespace Hush
         /// @return Result with the error that occurred.
         [[nodiscard]]
         virtual Result<void> Seek(std::size_t position) = 0;
+
+        /// Closes the file.
+        virtual void Close() = 0;
     };
 
 } // namespace Hush

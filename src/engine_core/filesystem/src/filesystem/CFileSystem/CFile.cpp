@@ -9,10 +9,7 @@
 #include <Logger.hpp>
 Hush::CFile::~CFile()
 {
-    if (m_file != nullptr)
-    {
-        fclose(m_file);
-    }
+    Close();
 }
 
 Hush::IFile::Result<unsigned long long> Hush::CFile::Read(std::span<std::byte> data)
@@ -48,4 +45,13 @@ Hush::IFile::Result<void> Hush::CFile::Seek(std::size_t position)
     }
 
     return Success();
+}
+
+void Hush::CFile::Close()
+{
+    if (m_file != nullptr)
+    {
+        fclose(m_file);
+        m_file = nullptr;
+    }
 }

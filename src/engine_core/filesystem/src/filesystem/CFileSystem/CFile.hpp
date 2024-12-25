@@ -36,6 +36,8 @@ namespace Hush
         [[nodiscard]]
         Result<void> Seek(std::size_t position) override;
 
+        void Close() override;
+
         /// @copydoc IFile::GetMetadata
         [[nodiscard]] const FileMetadata &GetMetadata() const override
         {
