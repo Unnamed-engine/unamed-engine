@@ -9,9 +9,10 @@
 
 namespace Hush
 {
+    //TODO: Discuss about checked / unchecked and NoValuePolicies
     template <typename T, typename E>
-    using Result = outcome_v2::result<T, E>;
-
+    using Result = outcome_v2::unchecked<T, E>;
+  
     inline auto Success()
     {
         return outcome_v2::success();

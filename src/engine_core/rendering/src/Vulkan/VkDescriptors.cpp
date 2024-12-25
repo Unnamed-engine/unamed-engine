@@ -160,6 +160,8 @@ void DescriptorAllocatorGrowable::Init(VkDevice device, uint32_t initialSets,
 
     VkDescriptorPool newPool = this->CreatePool(device, initialSets, poolRatios);
     
+    HUSH_ASSERT(newPool != nullptr, "Create Pool failed in nullptr!");
+
     // NOLINTNEXTLINE
     this->m_setsPerPool = static_cast<uint32_t>(initialSets * 1.5); // grow it next allocation
 
@@ -252,8 +254,22 @@ VkDescriptorPool DescriptorAllocatorGrowable::GetPool(VkDevice device)
 VkDescriptorPool DescriptorAllocatorGrowable::CreatePool(VkDevice device, uint32_t setCount,
                                                          const std::vector<PoolSizeRatio> &poolRatios)
 {
-    (void)device;
-    (void)setCount;
-    (void)poolRatios;
-    return VkDescriptorPool();
+	std::vector<VkDescriptorPoolSize> poolSizes;
+	for (PoolSizeRatio ratio : poolRatios) {
+		poolSizes.push_back(VkDescriptorPoolSize{
+			.type = ratio.type,
+			.descriptorCount = uint32_t(ratio.ratio * setCount)
+			});
+	}
+
+	VkDescriptorPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.flags = 0;
+	poolInfo.maxSets = setCount;
+	poolInfo.poolSizeCount = (uint32_t)poolSizes.size();
+	poolInfo.pPoolSizes = poolSizes.data();
+
+	VkDescriptorPool newPool;
+	vkCreateDescriptorPool(device, &poolInfo, nullptr, &newPool);
+	return newPool;
 }

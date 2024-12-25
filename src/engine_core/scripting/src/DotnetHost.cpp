@@ -4,6 +4,7 @@
 #include "LibManager.hpp"
 #include "StringUtils.hpp"
 #include "filesystem/PathUtils.hpp"
+#include "Platform.hpp"
 
 constexpr std::string_view DOTNET_CMD("hostfxr_initialize_for_dotnet_command_line");
 constexpr std::string_view DOTNET_RUNTIME_INIT_CONFIG("hostfxr_initialize_for_runtime_config");
@@ -29,7 +30,7 @@ Hush::DotnetHost::DotnetHost(const char *dotnetPath)
         Hush::LogError("No valid host was found for a .NET 8 version, make sure you have .NET 8 installed");
         return;
     }
-#if _WIN32
+#if HUSH_PLATFORM_WIN
     std::string strLibPath = targetPath.string();
     const char *libPath = strLibPath.c_str();
 #else
@@ -52,7 +53,7 @@ Hush::DotnetHost::DotnetHost(const char *dotnetPath)
     this->m_closeFuncPtr = LoadSymbol<hostfxr_close_fn>(sharedLibrary, DOTNET_CLOSE_FUNCTION.data());
     this->m_errorWriterFuncPtr = LoadSymbol<hostfxr_set_error_writer_fn>(sharedLibrary, DOTNET_ERROR_WRITER.data());
     // Add logging for any errors in C#
-#if _WIN32
+#if HUSH_PLATFORM_WIN
     this->m_errorWriterFuncPtr([](const char_t *message) {
         std::wstring wStrMessage = message;
         std::string strMessage = StringUtils::FromWString(wStrMessage);
