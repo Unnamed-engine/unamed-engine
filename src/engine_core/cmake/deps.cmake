@@ -24,3 +24,7 @@ find_package(glm CONFIG REQUIRED)
 
 #fastgltf
 find_package(fastgltf CONFIG REQUIRED)
+
+# Catch2
+find_package(Catch2 CONFIG REQUIRED)
+include(Catch)
