@@ -372,6 +372,20 @@ void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
 
 void Hush::VulkanRenderer::UpdateSceneObjects()
 {
+    static glm::vec3 monkeyPos(0, 0, -5);
+
+    if (InputManager::IsKeyDown(EKeyCode::D)) {
+        monkeyPos.x += 0.01f;
+    }
+	if (InputManager::IsKeyDown(EKeyCode::A)) {
+		monkeyPos.x -= 0.01f;
+	}
+	if (InputManager::IsKeyDown(EKeyCode::S)) {
+		monkeyPos.z += 0.01f;
+	}
+	if (InputManager::IsKeyDown(EKeyCode::W)) {
+		monkeyPos.z -= 0.01f;
+	}
     this->m_mainDrawContext.clear();
     // Test stuff just to show that it works... to be refactored into a more dynamic approach
     glm::mat4 topMatrix{ 1.0f };
@@ -380,7 +394,7 @@ void Hush::VulkanRenderer::UpdateSceneObjects()
 	glm::vec3 scale = DebugTooltip::s_debugTooltip == nullptr ? glm::vec3{ 0.0f } : DebugTooltip::s_debugTooltip->GetScale();
     glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), scale);
     
-    this->m_sceneData.view = glm::translate(glm::vec3{ 0, 0, -5 }) * scaleMat;
+    this->m_sceneData.view = glm::translate(monkeyPos) * scaleMat;
 	// camera projection
 	this->m_sceneData.proj = glm::perspective(glm::radians(70.f), (float)this->m_width / (float)this->m_height, 10000.f, 0.1f);
 
