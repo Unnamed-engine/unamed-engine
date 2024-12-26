@@ -1,4 +1,12 @@
 #pragma once
+
+//TODO: Move these undefs to the common.hpp file after dev merge
+// remove stupid MSVC min/max macro definitions
+#ifdef WIN32
+	#undef min
+	#undef max
+#endif
+
 #include <vector>
 #include <string>
 #include <optional>

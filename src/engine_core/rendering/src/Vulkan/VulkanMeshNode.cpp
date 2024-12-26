@@ -1,7 +1,12 @@
+#include "VulkanLoader.hpp"
 #include "VulkanMeshNode.hpp"
 #include "VkRenderObject.hpp"
-#include "VulkanLoader.hpp"
 #include "Assertions.hpp"
+
+Hush::VulkanMeshNode::VulkanMeshNode(std::shared_ptr<MeshAsset> mesh)
+{
+	this->m_mesh = mesh;
+}
 
 void Hush::VulkanMeshNode::Draw(const glm::mat4& topMatrix, void* drawContext)
 {
@@ -26,4 +31,9 @@ void Hush::VulkanMeshNode::Draw(const glm::mat4& topMatrix, void* drawContext)
 
 
 	RenderableNode::Draw(topMatrix, drawContext);
+}
+
+Hush::MeshAsset& Hush::VulkanMeshNode::GetMesh()
+{
+	return *this->m_mesh.get();
 }

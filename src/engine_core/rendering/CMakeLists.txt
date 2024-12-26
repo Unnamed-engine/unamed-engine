@@ -5,6 +5,7 @@ add_library(HushRendering OBJECT
         src/Vulkan/VulkanAllocatedBuffer.cpp
         src/Vulkan/VulkanRenderer.cpp
         src/Vulkan/GltfMetallicRoughness.cpp
+        src/Vulkan/VulkanMeshNode.cpp
         src/Vulkan/VulkanPipelineBuilder.cpp
         src/Vulkan/VulkanLoader.cpp
         src/Vulkan/VkDescriptors.cpp

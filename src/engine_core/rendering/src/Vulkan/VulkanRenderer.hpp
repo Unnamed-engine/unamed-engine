@@ -26,6 +26,7 @@
 #include "GPUSceneData.hpp"
 #include "GltfMetallicRoughness.hpp"
 #include "VkRenderObject.hpp"
+#include "Shared/RenderableNode.hpp"
 
 ///@brief Double frame buffering, allows for the GPU and CPU to work in parallel. NOTE: increase to 3 if experiencing
 /// jittery framerates
@@ -41,6 +42,7 @@ namespace Hush
     {
     public:
         static PFN_vkVoidFunction CustomVulkanFunctionLoader(const char* functionName, void* userData);
+        
         /// @brief Creates a new vulkan renderer from a given window context
         /// @param windowContext opaque pointer to the window context
         VulkanRenderer(void* windowContext);
@@ -66,6 +68,8 @@ namespace Hush
         void NewUIFrame() const noexcept override;
 
         void HandleEvent(const SDL_Event* event) noexcept override;
+
+        void UpdateSceneObjects() override;
 
         void Dispose();
 
@@ -171,7 +175,7 @@ namespace Hush
         GPUSceneData m_sceneData;
         VkDescriptorSetLayout m_gpuSceneDataDescriptorLayout;
 
-        std::vector<std::shared_ptr<MeshAsset>> testMeshes;
+        std::vector<std::shared_ptr<MeshAsset>> m_testMeshes;
 
 		GPUMeshBuffers m_rectangle;
 
@@ -191,6 +195,7 @@ namespace Hush
         AllocatedImage m_depthImage{};
 
         std::vector<VkRenderObject> m_mainDrawContext;
+        std::unordered_map<std::string, std::shared_ptr<RenderableNode>> m_loadedNodes;
 
         // Test stuff
 		AllocatedImage m_whiteImage{};

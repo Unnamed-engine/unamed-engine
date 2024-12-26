@@ -24,6 +24,22 @@ namespace Hush {
 			}
 		}
 
+		void SetLocalTransform(const glm::mat4& localTransform) {
+			this->m_localTransform = localTransform;
+		}
+
+		void SetWorldTransform(const glm::mat4& worldTransform) {
+			this->m_worldTransform = worldTransform;
+		}
+
+		const glm::mat4& GetLocalTransform() const noexcept {
+			return this->m_localTransform;
+		}
+
+		const glm::mat4& GetWorldTransform() const noexcept {
+			return this->m_worldTransform;
+		}
+
 	protected:
 		std::weak_ptr<RenderableNode> m_parent;
 		std::vector<std::shared_ptr<RenderableNode>> m_children;
