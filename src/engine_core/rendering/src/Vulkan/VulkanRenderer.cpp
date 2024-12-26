@@ -376,7 +376,11 @@ void Hush::VulkanRenderer::UpdateSceneObjects()
     // Test stuff just to show that it works... to be refactored into a more dynamic approach
     glm::mat4 topMatrix{ 1.0f };
     this->m_loadedNodes["Suzanne"]->Draw(topMatrix, &this->m_mainDrawContext);
-    this->m_sceneData.view = glm::translate(glm::vec3{ 0, 0, -5 });
+
+	glm::vec3 scale = DebugTooltip::s_debugTooltip == nullptr ? glm::vec3{ 0.0f } : DebugTooltip::s_debugTooltip->GetScale();
+    glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), scale);
+    
+    this->m_sceneData.view = glm::translate(glm::vec3{ 0, 0, -5 }) * scaleMat;
 	// camera projection
 	this->m_sceneData.proj = glm::perspective(glm::radians(70.f), (float)this->m_width / (float)this->m_height, 10000.f, 0.1f);
 
@@ -1144,10 +1148,7 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 	scissor.extent.width = extent.width;
 	scissor.extent.height = extent.height;
 
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
-
-	
-    glm::vec3 scale = DebugTooltip::s_debugTooltip == nullptr ? glm::vec3{0.0f} : DebugTooltip::s_debugTooltip->GetScale();
+	vkCmdSetScissor(cmd, 0, 1, &scissor);	
 
 	for (const VkRenderObject& draw : this->m_mainDrawContext) {
 
