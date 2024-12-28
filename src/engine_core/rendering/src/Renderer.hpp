@@ -11,7 +11,9 @@
 
 namespace Hush
 {
-    // TODO:
+    /// @brief A common interface for renderers, Hush supports many graphics APIs, and this is the interface
+    /// that allows us to standardize all of them...
+    /// All renderers MUST bind to SDL and ImGUI, the latter can be done through the IImGuiForwarder interface
     class IRenderer
     {
       public:
@@ -24,7 +26,7 @@ namespace Hush
         IRenderer &operator=(const IRenderer &) = delete;
         IRenderer(IRenderer &&) = delete;
         IRenderer &operator=(IRenderer &&) = delete;
-
+    
         virtual ~IRenderer() = default;
 
         virtual void CreateSwapChain(uint32_t width, uint32_t height) = 0;
@@ -32,6 +34,12 @@ namespace Hush
         virtual void InitImGui() = 0;
 
         virtual void Draw() = 0;
+
+        /// @brief Each renderer will have to implement a way of updating all the objects
+        /// inside of the scene, these are instances of the IRenderableNode, which is a common interface
+        /// for all renderers, but additional render data (i.e drawContext) might be needed by their underlying implementation
+        /// (see VulkanMeshNode for an example)
+        virtual void UpdateSceneObjects() = 0;
 
         /// @brief Initializes all the internal structures needed to begin rendering, call after a swapchain has been
         /// created!

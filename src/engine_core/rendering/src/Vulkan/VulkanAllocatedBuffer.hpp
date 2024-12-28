@@ -18,7 +18,7 @@ namespace Hush
 
         VulkanAllocatedBuffer(uint32_t size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocator allocator);
 
-        void Dispose(VmaAllocator allocator);
+        void Dispose(VmaAllocator allocator) const;
 
         [[nodiscard]] uint32_t GetSize() const noexcept;
 

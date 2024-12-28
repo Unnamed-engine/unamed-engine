@@ -1,4 +1,12 @@
 #pragma once
+
+//TODO: Move these undefs to the common.hpp file after dev merge
+// remove stupid MSVC min/max macro definitions
+#ifdef WIN32
+	#undef min
+	#undef max
+#endif
+
 #include <vector>
 #include <string>
 #include <optional>
@@ -7,7 +15,7 @@
 #include "GPUMeshBuffers.hpp"
 #include <fastgltf/types.hpp>
 #include <Result.hpp>
-#include "Error.hpp"
+#include "VkMaterialInstance.hpp"
 
 
 namespace Hush {
@@ -15,6 +23,7 @@ namespace Hush {
 	struct GeoSurface {
 		uint32_t startIndex;
 		uint32_t count;
+		std::shared_ptr<VkMaterialInstance> material;
 	};
 
 	struct MeshAsset {

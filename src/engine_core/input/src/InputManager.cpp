@@ -10,7 +10,7 @@ MouseData Hush::InputManager::S_MOUSE_DATA = {};
 
 bool Hush::InputManager::IsKeyDown(EKeyCode key)
 {
-    return KeyMapContains(key) && S_KEY_DATA_BY_CODE[key].currentState == EKeyState::Pressed;
+    return KeyMapContains(key) && (S_KEY_DATA_BY_CODE[key].currentState == EKeyState::Pressed || S_KEY_DATA_BY_CODE[key].currentState == EKeyState::Held);
 }
 
 bool Hush::InputManager::IsKeyUp(EKeyCode key)

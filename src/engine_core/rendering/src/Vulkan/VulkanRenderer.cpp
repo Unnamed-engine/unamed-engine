@@ -33,6 +33,7 @@
 #include "VulkanLoader.hpp"
 #include <glm/gtx/transform.hpp>
 #include "../../../editor/src/DebugTooltip.hpp"
+#include "VulkanMeshNode.hpp"
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -274,7 +275,11 @@ void Hush::VulkanRenderer::Draw()
 {
     if (this->m_resizeRequested) {
         this->ResizeSwapchain();
+        return;
     }
+    
+    this->UpdateSceneObjects();
+
     //Prepare and flush the render command
     FrameData &currentFrame = this->GetCurrentFrame();
     uint32_t swapchainImageIndex = 0u;
@@ -285,9 +290,9 @@ void Hush::VulkanRenderer::Draw()
     }
 
     VkImage currentImage = this->m_swapchainImages.at(swapchainImageIndex);
-    
+
     this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    //this->DrawBackground(cmd);
+    this->DrawBackground(cmd);
     //Transition
 	this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	this->TransitionImage(cmd, this->m_depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
@@ -365,6 +370,45 @@ void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
     this->m_uiForwarder->HandleEvent(event);
 }
 
+void Hush::VulkanRenderer::UpdateSceneObjects()
+{
+    static glm::vec3 monkeyPos(0, 0, -5);
+
+    if (InputManager::IsKeyDown(EKeyCode::D)) {
+        monkeyPos.x += 0.01f;
+    }
+	if (InputManager::IsKeyDown(EKeyCode::A)) {
+		monkeyPos.x -= 0.01f;
+	}
+	if (InputManager::IsKeyDown(EKeyCode::S)) {
+		monkeyPos.z += 0.01f;
+	}
+	if (InputManager::IsKeyDown(EKeyCode::W)) {
+		monkeyPos.z -= 0.01f;
+	}
+    this->m_mainDrawContext.clear();
+    // Test stuff just to show that it works... to be refactored into a more dynamic approach
+    glm::mat4 topMatrix{ 1.0f };
+    this->m_loadedNodes["Suzanne"]->Draw(topMatrix, &this->m_mainDrawContext);
+
+	glm::vec3 scale = DebugTooltip::s_debugTooltip == nullptr ? glm::vec3{ 0.0f } : DebugTooltip::s_debugTooltip->GetScale();
+    glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), scale);
+    
+    this->m_sceneData.view = glm::translate(monkeyPos) * scaleMat;
+	// camera projection
+	this->m_sceneData.proj = glm::perspective(glm::radians(70.f), (float)this->m_width / (float)this->m_height, 10000.f, 0.1f);
+
+	// invert the Y direction on projection matrix so that we are more similar
+	// to opengl and gltf axis
+	this->m_sceneData.proj[1][1] *= -1;
+	this->m_sceneData.viewproj = this->m_sceneData.proj * this->m_sceneData.view;
+
+	//some default lighting parameters
+	this->m_sceneData.ambientColor = glm::vec4(.1f);
+	this->m_sceneData.sunlightColor = glm::vec4(1.f);
+    this->m_sceneData.sunlightDirection = glm::vec4(0, 1, 0.5, 1.f);
+}
+
 void Hush::VulkanRenderer::InitRendering()
 {
     this->CreateSyncObjects();
@@ -373,11 +417,12 @@ void Hush::VulkanRenderer::InitRendering()
 
     this->InitRenderables();
 
-    this->InitDefaultData();
-
     this->InitDescriptors();
 
     this->InitPipelines();
+
+    // Must be called after the pipelines and descriptors are initialized
+    this->InitDefaultData();
 }
 
 void Hush::VulkanRenderer::Dispose()
@@ -388,7 +433,7 @@ void Hush::VulkanRenderer::Dispose()
     {
         vkDeviceWaitIdle(this->m_device);
 
-        for (auto& mesh : this->testMeshes) {
+        for (auto& mesh : this->m_testMeshes) {
             mesh->meshBuffers.indexBuffer.Dispose(this->m_allocator);
             mesh->meshBuffers.vertexBuffer.Dispose(this->m_allocator);
         }
@@ -463,6 +508,21 @@ VkInstance Hush::VulkanRenderer::GetVulkanInstance() noexcept
 VkDevice Hush::VulkanRenderer::GetVulkanDevice() noexcept
 {
     return this->m_device;
+}
+
+VkDescriptorSetLayout Hush::VulkanRenderer::GetGpuSceneDataDescriptorLayout() noexcept
+{
+    return this->m_gpuSceneDataDescriptorLayout;
+}
+
+const AllocatedImage& Hush::VulkanRenderer::GetDrawImage() const noexcept
+{
+    return this->m_drawImage;
+}
+
+const AllocatedImage& Hush::VulkanRenderer::GetDepthImage() const noexcept
+{
+    return this->m_depthImage;
 }
 
 VkPhysicalDevice Hush::VulkanRenderer::GetVulkanPhysicalDevice() const noexcept
@@ -658,7 +718,7 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 void Hush::VulkanRenderer::InitRenderables()
 {
     std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\monkey.glb";
-    this->testMeshes = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
+    this->m_testMeshes = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
 }
 
 void Hush::VulkanRenderer::TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout,
@@ -733,9 +793,9 @@ void Hush::VulkanRenderer::CopyImageToImage(VkCommandBuffer cmd, VkImage source,
 void Hush::VulkanRenderer::InitDescriptors() noexcept
 {
     // create a descriptor pool that will hold 10 sets with 1 image each
-    std::vector<DescriptorAllocator::PoolSizeRatio> sizes = {{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1}};
+    std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes = {{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1}};
 
-    this->m_globalDescriptorAllocator.InitPool(volkGetLoadedDevice(), 10, sizes);
+    this->m_globalDescriptorAllocator.Init(volkGetLoadedDevice(), 10, sizes);
 
     // make the descriptor set layout for our compute draw
     {
@@ -791,6 +851,10 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
 {
     this->InitBackgroundPipelines();
     this->InitMeshPipeline();
+
+	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.frag.spv";
+	constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.vert.spv";
+    this->m_metalRoughMaterial.BuildPipelines(this, fragmentShaderPath, vertexShaderPath);
 }
 
 void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
@@ -987,33 +1051,81 @@ void Hush::VulkanRenderer::InitDefaultData() noexcept
 		DestroyImage(m_errorCheckerboardImage);
 	});
 
+	GLTFMetallicRoughness::MaterialResources materialResources;
+	//default the material textures
+	materialResources.colorImage = this->m_whiteImage;
+	materialResources.colorSampler = this->m_defaultSamplerLinear;
+	materialResources.metalRoughImage = this->m_whiteImage;
+	materialResources.metalRoughSampler = this->m_defaultSamplerLinear;
+
+	//set the uniform buffer for the material data
+	VulkanAllocatedBuffer materialConstants = VulkanAllocatedBuffer(
+        sizeof(GLTFMetallicRoughness::MaterialConstants), 
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+        VMA_MEMORY_USAGE_CPU_TO_GPU, 
+        this->m_allocator
+    );
+
+	//write the buffer
+	auto* sceneUniformData = static_cast<GLTFMetallicRoughness::MaterialConstants*>(materialConstants.GetAllocation()->GetMappedData());
+	sceneUniformData->colorFactors = glm::vec4{ 1,1,1,1 };
+	sceneUniformData->metal_rough_factors = glm::vec4{ 1,0.5,0,0 };
+
+    this->m_mainDeletionQueue.PushFunction([&] {
+        materialConstants.Dispose(m_allocator);
+    });
+
+	materialResources.dataBuffer = materialConstants.GetBuffer();
+	materialResources.dataBufferOffset = 0;
+
+	this->m_defaultData = this->m_metalRoughMaterial.WriteMaterial(
+        this->m_device,
+        EMaterialPass::MainColor, 
+        materialResources, 
+        this->m_globalDescriptorAllocator
+    );
+
+	for (std::shared_ptr<MeshAsset>& m : this->m_testMeshes) {
+		std::shared_ptr<VulkanMeshNode> newNode = std::make_shared<VulkanMeshNode>(m);
+
+		newNode->SetLocalTransform(glm::mat4{ 1.f });
+		newNode->SetWorldTransform(glm::mat4{ 1.f });
+
+		for (GeoSurface& s : newNode->GetMesh().surfaces) {
+			s.material = std::make_shared<VkMaterialInstance>(this->m_defaultData);
+		}
+
+		this->m_loadedNodes[m->name] = std::move(newNode);
+	}
+
 }
 
 void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 {
 	////allocate a new uniform buffer for the scene data
-	//VulkanAllocatedBuffer gpuSceneDataBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, this->m_allocator);
-    //
+	VulkanAllocatedBuffer gpuSceneDataBuffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, this->m_allocator);
+    
 	////add it to the deletion queue of this frame so it gets deleted once its been used
-	//this->GetCurrentFrame().deletionQueue.PushFunction([&, this]() {
-	//	    gpuSceneDataBuffer.Dispose(m_allocator);
-	//});
-    //
+	this->GetCurrentFrame().deletionQueue.PushFunction([=, this]() {
+		    gpuSceneDataBuffer.Dispose(m_allocator);
+	});
+    
 	////write the buffer
-	//GPUSceneData* sceneUniformData = (GPUSceneData*)gpuSceneDataBuffer.GetAllocation()->GetMappedData();
-	//*sceneUniformData = this->m_sceneData;
+	GPUSceneData* sceneUniformData = (GPUSceneData*)gpuSceneDataBuffer.GetAllocation()->GetMappedData();
+	*sceneUniformData = this->m_sceneData;
 
 	//create a descriptor set that binds that buffer and update it
-	//VkDescriptorSet globalDescriptor = this->GetCurrentFrame().frameDescriptors.Allocate(this->m_device, this->m_gpuSceneDataDescriptorLayout);
+	VkDescriptorSet globalDescriptor = this->GetCurrentFrame().frameDescriptors.Allocate(this->m_device, this->m_gpuSceneDataDescriptorLayout);
     
     // Local scope to use another writer later one
-    //{
-	//    DescriptorWriter writer;
-	//    writer.WriteBuffer(0, gpuSceneDataBuffer.GetBuffer(), sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-	//    writer.UpdateSet(this->m_device, globalDescriptor);
-    //}
+    {
+	    DescriptorWriter writer;
+	    writer.WriteBuffer(0, gpuSceneDataBuffer.GetBuffer(), sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	    writer.UpdateSet(this->m_device, globalDescriptor);
+    }
 
 	//begin a render pass  connected to our draw image
+    //TODO: Remove as if chapter 6
 	VkRenderingAttachmentInfo colorAttachment = VkUtilsFactory::CreateAttachmentInfoWithLayout(
         this->m_drawImage.imageView, 
         nullptr, 
@@ -1050,46 +1162,23 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 	scissor.extent.width = extent.width;
 	scissor.extent.height = extent.height;
 
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
+	vkCmdSetScissor(cmd, 0, 1, &scissor);	
 
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, this->m_meshPipeline);
+	for (const VkRenderObject& draw : this->m_mainDrawContext) {
 
-	VkDescriptorSet imageSet = this->GetCurrentFrame().frameDescriptors.Allocate(this->m_device, this->m_singleImageDescriptorLayout);
-    {
-        DescriptorWriter writer;
-	    writer.WriteImage(0, this->m_errorCheckerboardImage.imageView, this->m_defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-	    writer.UpdateSet(this->m_device, imageSet);
-    }
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 0, 1, &globalDescriptor, 0, nullptr);
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 1, 1, &draw.material->materialSet, 0, nullptr);
 
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
+		vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
+		GPUDrawPushConstants pushConstants;
+		pushConstants.vertexBuffer = draw.vertexBufferAddress;
+		pushConstants.worldMatrix = draw.transform;
+		vkCmdPushConstants(cmd, draw.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
 
-
-	GPUDrawPushConstants pushContants;
-
-    glm::vec3 scale = DebugTooltip::s_debugTooltip == nullptr ? glm::vec3{0.0f} : DebugTooltip::s_debugTooltip->GetScale();
-
-    glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), scale);
-
-    glm::mat4 view = glm::translate(glm::vec3{ 0,0,-5 }) * scaleMat;
-	// camera projection
-	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)this->m_width / (float)this->m_width, 10000.f, 0.1f);
-
-	// invert the Y direction on projection matrix so that we are more similar
-	// to opengl and gltf axis
-	projection[1][1] *= -1;
-	// Compute final transform matrix
-	pushContants.worldMatrix = projection * view;
-
-    const std::shared_ptr<MeshAsset>& meshToDraw = testMeshes[0];
-	//< matview
-	//> meshdraw
-	pushContants.vertexBuffer = meshToDraw->meshBuffers.vertexBufferAddress;
-
-	vkCmdPushConstants(cmd, this->m_meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushContants);
-	vkCmdBindIndexBuffer(cmd, meshToDraw->meshBuffers.indexBuffer.GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmd, meshToDraw->surfaces[0].count, 1, meshToDraw->surfaces[0].startIndex, 0, 0);
-	//< meshdraw
+		vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
+	}
 
 	vkCmdEndRendering(cmd);
 }
@@ -1172,6 +1261,7 @@ void Hush::VulkanRenderer::ResizeSwapchain()
 {
     this->m_uiForwarder->EndFrame();
     vkDeviceWaitIdle(this->m_device);
+    vkQueueWaitIdle(this->m_graphicsQueue);
     this->DestroySwapChain();
     //Defer this to the WindowRenderer interface instead of SDL
     int32_t width, height;

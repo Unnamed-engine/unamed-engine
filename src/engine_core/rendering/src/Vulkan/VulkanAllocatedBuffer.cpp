@@ -24,7 +24,7 @@ Hush::VulkanAllocatedBuffer::VulkanAllocatedBuffer(uint32_t size, VkBufferUsageF
                    "Buffer allocation failed!");
 }
 
-void Hush::VulkanAllocatedBuffer::Dispose(VmaAllocator allocator)
+void Hush::VulkanAllocatedBuffer::Dispose(VmaAllocator allocator) const
 {
     vmaDestroyBuffer(allocator, this->m_buffer, this->m_allocation);
 }
