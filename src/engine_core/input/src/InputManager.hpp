@@ -12,11 +12,20 @@
 #include <unordered_map>
 namespace Hush
 {
+
+    enum class ECursorLockMode {
+        Free = 0,
+        Locked = 1
+    };
+
     class InputManager
     {
       public:
-        /// @brief Evaluates to true the frame the key is identified as EKeyState::Pressed
+        /// @brief Evaluates to true whilst the key is pressed down
         static bool IsKeyDown(EKeyCode key);
+
+		/// @brief Evaluates to true the frame the key is identified as EKeyState::Pressed
+		static bool IsKeyDownThisFrame(EKeyCode key);
 
         /// @brief Evaluates to true the frame the key is identified as EKeyState::Release
         static bool IsKeyUp(EKeyCode key);
@@ -42,6 +51,8 @@ namespace Hush
         static void SendMouseMovementEvent(int32_t posX, int32_t posY, int32_t accelerationX, int32_t accelerationY);
 
         static void ResetMouseAcceleration();
+
+        static void SetCursorLock(ECursorLockMode lockMode);
 
       private:
         // TODO: Reserve memory for this map???

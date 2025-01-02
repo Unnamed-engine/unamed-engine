@@ -57,4 +57,3 @@ void main()
 
 	outFragColor = vec4(color * lightValue + color * irradiance.x * vec3(0.2f) ,1.0f);
 }
-

@@ -63,6 +63,18 @@ Hush::Result<std::unique_ptr<Hush::IFile>, Hush::IFile::EError> Hush::VirtualFil
     return file;
 }
 
+Hush::Result<std::filesystem::path, Hush::IFile::EError> Hush::VirtualFilesystem::ToAbsolutePath(const std::string_view& virtualPath)
+{
+	std::optional<ResolvedPath> resolved = ResolveFileSystem(virtualPath);
+
+	if (!resolved)
+	{
+		LogFormat(ELogLevel::Debug, "Mount point for {} not found", virtualPath);
+		return IFile::EError::FileDoesntExist;
+	}
+    return resolved->filesystem->GetAbsolutePath(resolved->path);
+}
+
 void Hush::VirtualFilesystem::MountFileSystemInternal(std::string_view path,
                                                       std::unique_ptr<IFileSystem> resourceLoader)
 {

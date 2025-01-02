@@ -5,8 +5,15 @@ Hush::Camera::Camera(const glm::mat4 &projectionMat, const glm::mat4 &unreversed
 {
 }
 
-Hush::Camera::Camera(float degFov, float width, float height, float nearP, float farP) noexcept : m_projectionMatrix(glm::perspectiveFov(glm::radians(degFov), width, height, farP, nearP)), m_unreversedProjectionMatrix(glm::perspectiveFov(glm::radians(degFov), width, height, nearP, farP))
-{
+Hush::Camera::Camera(float degFov, float width, float height, float nearP, float farP) noexcept {
+    this->m_verticalFOV = degFov;
+    this->m_aspectRatio = width / height;
+    this->m_nearClip = nearP;
+    this->m_farClip = farP;
+    this->m_width = width;
+    this->m_height = height;
+    //Construct our perspective matrix
+    this->RefreshMatrix();
 }
 
 const glm::mat4 &Hush::Camera::GetProjectionMatrix() const noexcept
@@ -32,4 +39,20 @@ void Hush::Camera::SetPerspectiveProjectionMatrix(const float radFov, const floa
     //but, you know, adding this for future bugs and stuff
     this->m_projectionMatrix = glm::perspectiveFov(radFov, width, height, farP, nearP);
     this->m_unreversedProjectionMatrix = glm::perspectiveFov(radFov, width, height, nearP, farP);
+}
+
+void Hush::Camera::SetVerticalFOV(float degFov)
+{
+    this->m_verticalFOV = degFov;
+    this->RefreshMatrix();
+}
+
+float Hush::Camera::GetVerticalFOV() const noexcept
+{
+    return this->m_verticalFOV;
+}
+
+void Hush::Camera::RefreshMatrix()
+{
+    this->m_projectionMatrix = glm::perspective(glm::radians(this->m_verticalFOV), this->m_aspectRatio, this->m_nearClip, this->m_farClip);
 }

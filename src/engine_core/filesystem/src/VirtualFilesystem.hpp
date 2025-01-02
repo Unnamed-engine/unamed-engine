@@ -28,12 +28,12 @@ namespace Hush
             std::unique_ptr<IFileSystem> filesystem;
         };
 
+      public:
         struct ResolvedPath
         {
             IFileSystem* filesystem = nullptr;
             std::string_view path;
         };
-      public:
         enum class EError
         {
             None,
@@ -46,6 +46,9 @@ namespace Hush
             None,
             Recursive,
         };
+
+        //HACK: Instance for some quick testing throughout the app
+        static inline VirtualFilesystem* s_instance;
 
         VirtualFilesystem();
 
@@ -63,15 +66,17 @@ namespace Hush
 
         Result<std::unique_ptr<IFile>, IFile::EError> OpenFile(std::string_view virtualPath, EFileOpenMode mode = EFileOpenMode::Read);
 
+        Result<std::filesystem::path, IFile::EError> ToAbsolutePath(const std::string_view& virtualPath);
+
         template <class T, class... Args> void MountFileSystem(std::string_view path, Args &&...args)
         {
             MountFileSystemInternal(path, std::make_unique<T>(std::forward<Args>(args)...));
         }
 
       private:
-        void MountFileSystemInternal(std::string_view path, std::unique_ptr<IFileSystem> resourceLoader);
-
         std::optional<ResolvedPath> ResolveFileSystem(std::string_view path);
+
+        void MountFileSystemInternal(std::string_view path, std::unique_ptr<IFileSystem> resourceLoader);
 
         std::vector<MountPoint> m_mountedFileSystems;
     };

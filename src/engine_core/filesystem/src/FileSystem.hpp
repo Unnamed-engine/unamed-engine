@@ -51,5 +51,10 @@ namespace Hush
         virtual Result<std::unique_ptr<IFile>, IFile::EError> OpenFile(std::filesystem::path vfsPath,
                                                                        std::filesystem::path path,
                                                                        EFileOpenMode mode = EFileOpenMode::Read) = 0;
+        
+        /// Transforms a relative or virtual path (if applicable) to its corresponding absolute one
+        /// @param Relative or virtual path
+        /// @return A result with the absolute path if found, error otherwise
+        virtual Result<std::filesystem::path, IFile::EError> GetAbsolutePath(const std::filesystem::path& path) = 0;
     };
 } // namespace Hush

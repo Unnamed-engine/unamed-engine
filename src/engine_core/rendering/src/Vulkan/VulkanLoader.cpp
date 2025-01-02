@@ -4,19 +4,21 @@
 #include <fastgltf/tools.hpp>
 #include "VkTypes.hpp"
 #include "VulkanRenderer.hpp"
+#include "../../filesystem/src/VirtualFilesystem.hpp"
 
-std::optional<std::vector<std::shared_ptr<Hush::MeshAsset>>> Hush::VulkanLoader::LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath)
+std::optional<std::vector<std::shared_ptr<Hush::MeshAsset>>> Hush::VulkanLoader::LoadGltfMeshes(VulkanRenderer* engine, const std::string_view& virtualFilePath)
 {
 	fastgltf::GltfDataBuffer data;
-	data.loadFromFile(filePath);
+	std::filesystem::path modelPath(virtualFilePath);
+	data.loadFromFile(modelPath);
 
 	constexpr fastgltf::Options loadingOptions = fastgltf::Options::LoadGLBBuffers | fastgltf::Options::LoadExternalBuffers;
 
 	fastgltf::Parser parser{};
 
-	fastgltf::Expected<fastgltf::Asset> loadedAsset = parser.loadBinaryGLTF(&data, filePath.parent_path(), loadingOptions);
+	fastgltf::Expected<fastgltf::Asset> loadedAsset = parser.loadBinaryGLTF(&data, modelPath.parent_path(), loadingOptions);
 
-	HUSH_ASSERT(loadedAsset, "GLTF asset at {} not properly loaded, error: {}!", filePath.string(), fastgltf::getErrorMessage(loadedAsset.error()));
+	HUSH_ASSERT(loadedAsset, "GLTF asset at {} not properly loaded, error: {}!", virtualFilePath, fastgltf::getErrorMessage(loadedAsset.error()));
 	
 	std::vector<uint32_t> indices;
 	std::vector<Vertex> vertices;

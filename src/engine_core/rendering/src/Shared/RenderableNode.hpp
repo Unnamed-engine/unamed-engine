@@ -40,6 +40,14 @@ namespace Hush {
 			return this->m_worldTransform;
 		}
 
+		glm::vec3 GetPosition() const noexcept {
+			return this->m_worldTransform[3];
+		}
+
+		void SetPosition(const glm::vec3& position) {
+			this->m_worldTransform[3] = glm::vec4(position, 1.0f);
+		}
+
 	protected:
 		std::weak_ptr<RenderableNode> m_parent;
 		std::vector<std::shared_ptr<RenderableNode>> m_children;

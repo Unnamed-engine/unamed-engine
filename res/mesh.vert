@@ -42,4 +42,3 @@ void main()
 	outUV.x = v.uv_x;
 	outUV.y = v.uv_y;
 }
-

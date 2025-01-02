@@ -68,3 +68,12 @@ Hush::Result<std::unique_ptr<Hush::IFile>, Hush::IFile::EError> Hush::CFileSyste
 
     return std::make_unique<CFile>(file, std::move(metadata));
 }
+
+Hush::Result<std::filesystem::path, Hush::IFile::EError> Hush::CFileSystem::GetAbsolutePath(const std::filesystem::path& path)
+{
+    std::filesystem::path absPath = std::filesystem::absolute({ mRoot / path });
+    if (!std::filesystem::exists(absPath)) {
+        return IFile::EError::FileDoesntExist;
+    }
+    return absPath;
+}

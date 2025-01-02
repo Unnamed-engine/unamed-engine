@@ -6,8 +6,7 @@
 
 #pragma once
 
-#include <glm/glm.hpp>
-#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/gtx/transform.hpp>
 
 namespace Hush
 {
@@ -28,12 +27,19 @@ namespace Hush
         void SetPerspectiveProjectionMatrix(const float radFov, const float width, const float height,
                                             const float nearP, const float farP);
 
+        void SetVerticalFOV(float degFov);
+
+        float GetVerticalFOV() const noexcept;
+
       protected:
-        // NOLINTNEXTÑINE
+		float m_verticalFOV, m_aspectRatio, m_nearClip, m_farClip, m_width, m_height;
+		// NOLINTNEXTLINE
         float m_exposure = 0.8f; //Aribtrary value (inspired from the Hazel Engine)
-      private:
         glm::mat4 m_projectionMatrix = glm::mat4(1.0f);
         // Currently only needed for shadow maps and ImGuizmo
         glm::mat4 m_unreversedProjectionMatrix = glm::mat4(1.0f);
+
+      private:
+          void RefreshMatrix();
     };
 }

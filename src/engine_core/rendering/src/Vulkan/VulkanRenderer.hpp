@@ -27,6 +27,7 @@
 #include "GltfMetallicRoughness.hpp"
 #include "VkRenderObject.hpp"
 #include "Shared/RenderableNode.hpp"
+#include "Shared/EditorCamera.hpp"
 
 ///@brief Double frame buffering, allows for the GPU and CPU to work in parallel. NOTE: increase to 3 if experiencing
 /// jittery framerates
@@ -209,6 +210,8 @@ namespace Hush
 
 		VkSampler m_defaultSamplerLinear;
 		VkSampler m_defaultSamplerNearest;
+
+        EditorCamera m_mainCamera;
 
         // Frame related data
         std::array<FrameData, FRAME_OVERLAP> m_frames{};

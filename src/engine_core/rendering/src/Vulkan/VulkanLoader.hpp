@@ -44,7 +44,7 @@ namespace Hush {
 		};
 
 	public:
-		static std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath);
+		static std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGltfMeshes(VulkanRenderer* engine, const std::string_view& virtualFilePath);
 
 
 	private:

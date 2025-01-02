@@ -41,6 +41,7 @@ namespace Hush
                                                                std::filesystem::path path,
                                                                EFileOpenMode mode) override;
 
+        Result<std::filesystem::path, IFile::EError> GetAbsolutePath(const std::filesystem::path& path) override;
       private:
         std::filesystem::path mRoot;
         std::unordered_map<std::byte *, std::unique_ptr<std::byte[]>> mLoadedFiles;

@@ -13,15 +13,15 @@ Hush::HushEngine::~HushEngine()
 void Hush::HushEngine::Run()
 {
     this->m_app = LoadApplication();
+    // Initialize any static resources we need
+    this->Init();
+    this->m_app->Init();
 
     this->m_isApplicationRunning = true;
     WindowRenderer mainRenderer(m_app->GetAppName().c_str());
     IRenderer *rendererImpl = mainRenderer.GetInternalRenderer();
 
-    // Initialize any static resources we need
-    this->Init();
 
-    this->m_app->Init();
 
     while (this->m_isApplicationRunning)
     {
@@ -60,4 +60,5 @@ void Hush::HushEngine::Quit()
 
 void Hush::HushEngine::Init()
 {
+
 }

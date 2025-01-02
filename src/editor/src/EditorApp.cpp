@@ -6,6 +6,8 @@
 #include "UI.hpp"
 
 #include <memory>
+#include "VirtualFilesystem.hpp"
+#include "filesystem/CFileSystem/CFileSystem.hpp"
 
 class EditorApp final : public Hush::IApplication
 {
@@ -23,6 +25,9 @@ class EditorApp final : public Hush::IApplication
 
     void Init() override
     {
+		Hush::VirtualFilesystem::s_instance = new Hush::VirtualFilesystem();
+        std::filesystem::path absPath = std::filesystem::absolute(".");
+        Hush::VirtualFilesystem::s_instance->MountFileSystem<Hush::CFileSystem>("res://", absPath.string());
     }
 
     void Update() override
