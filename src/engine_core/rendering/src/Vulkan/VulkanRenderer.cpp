@@ -710,7 +710,7 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\monkey.glb";
+    std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\house.glb";
     this->m_testMeshes = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
 }
 

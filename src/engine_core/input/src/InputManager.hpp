@@ -12,11 +12,20 @@
 #include <unordered_map>
 namespace Hush
 {
+
+    enum class ECursorLockMode {
+        Free = 0,
+        Locked = 1
+    };
+
     class InputManager
     {
-      public:
-        /// @brief Evaluates to true the frame the key is identified as EKeyState::Pressed
+    public:
+        /// @brief Evaluates to true whilst the key is pressed down 
         static bool IsKeyDown(EKeyCode key);
+
+        /// @brief Evaluates to true the frame the key is identified as EKeyState::Pressed
+        static bool IsKeyDownThisFrame(EKeyCode key);
 
         /// @brief Evaluates to true the frame the key is identified as EKeyState::Release
         static bool IsKeyUp(EKeyCode key);
@@ -33,6 +42,8 @@ namespace Hush
         /// @brief Gets the vector of the mouse's acceleration in pixels/s^2
         static glm::vec2 GetMouseAcceleration();
 
+        static const glm::vec2& GetMouseScrollAcceleration();
+
         /* Methods to send events from SDL */
 
         static void SendKeyEvent(KeyCode key, EKeyState state);
@@ -41,9 +52,13 @@ namespace Hush
 
         static void SendMouseMovementEvent(int32_t posX, int32_t posY, int32_t accelerationX, int32_t accelerationY);
 
+        static void SendWheelEvent(float posX, float posY);
+
         static void ResetMouseAcceleration();
 
-      private:
+        static void SetCursorLock(ECursorLockMode lockMode);
+
+    private:
         // TODO: Reserve memory for this map???
         // NOLINTNEXTLINE
         static std::unordered_map<EKeyCode, KeyData> S_KEY_DATA_BY_CODE;
@@ -51,7 +66,7 @@ namespace Hush
         // NOLINTNEXTLINE
         static MouseData S_MOUSE_DATA;
 
-        static void UpdateKeyStateFromData(KeyData &keyData, EKeyState incomingState);
+        static void UpdateKeyStateFromData(KeyData& keyData, EKeyState incomingState);
 
         static bool KeyMapContains(EKeyCode key);
 
