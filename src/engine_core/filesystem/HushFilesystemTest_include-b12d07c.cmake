@@ -1,0 +1,5 @@
+if(EXISTS "Y:/Programming/C++/Hush-Engine/src/engine_core/filesystem/HushFilesystemTest_tests-b12d07c.cmake")
+  include("Y:/Programming/C++/Hush-Engine/src/engine_core/filesystem/HushFilesystemTest_tests-b12d07c.cmake")
+else()
+  add_test(HushFilesystemTest_NOT_BUILT-b12d07c HushFilesystemTest_NOT_BUILT-b12d07c)
+endif()

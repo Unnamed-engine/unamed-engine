@@ -372,30 +372,20 @@ void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
 
 void Hush::VulkanRenderer::UpdateSceneObjects()
 {
-    static glm::vec3 monkeyPos(0, 0, -5);
-
-    if (InputManager::IsKeyDown(EKeyCode::D)) {
-        monkeyPos.x += 0.01f;
+    this->m_editorCamera.OnUpdate();
+	this->m_mainDrawContext.clear();
+	// Test stuff just to show that it works... to be refactored into a more dynamic approach
+	glm::mat4 topMatrix{ 1.0f };
+    for (auto& nodeEntry : this->m_loadedNodes)
+    {
+	    nodeEntry.second->Draw(topMatrix, &this->m_mainDrawContext);
     }
-	if (InputManager::IsKeyDown(EKeyCode::A)) {
-		monkeyPos.x -= 0.01f;
-	}
-	if (InputManager::IsKeyDown(EKeyCode::S)) {
-		monkeyPos.z += 0.01f;
-	}
-	if (InputManager::IsKeyDown(EKeyCode::W)) {
-		monkeyPos.z -= 0.01f;
-	}
-    this->m_mainDrawContext.clear();
-    // Test stuff just to show that it works... to be refactored into a more dynamic approach
-    glm::mat4 topMatrix{ 1.0f };
-    this->m_loadedNodes["Suzanne"]->Draw(topMatrix, &this->m_mainDrawContext);
 
-	glm::vec3 scale = DebugTooltip::s_debugTooltip == nullptr ? glm::vec3{ 0.0f } : DebugTooltip::s_debugTooltip->GetScale();
-    glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), scale);
-    
-    this->m_sceneData.view = glm::translate(monkeyPos) * scaleMat;
+    glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), glm::vec3{1.0f});
+    glm::mat4 viewMatrix = this->m_editorCamera.GetViewMatrix() * scaleMat;
+	this->m_sceneData.view = viewMatrix;
 	// camera projection
+	//this->m_sceneData.proj = this->m_editorCamera.GetProjectionMatrix();
 	this->m_sceneData.proj = glm::perspective(glm::radians(70.f), (float)this->m_width / (float)this->m_height, 10000.f, 0.1f);
 
 	// invert the Y direction on projection matrix so that we are more similar
@@ -406,7 +396,7 @@ void Hush::VulkanRenderer::UpdateSceneObjects()
 	//some default lighting parameters
 	this->m_sceneData.ambientColor = glm::vec4(.1f);
 	this->m_sceneData.sunlightColor = glm::vec4(1.f);
-    this->m_sceneData.sunlightDirection = glm::vec4(0, 1, 0.5, 1.f);
+	this->m_sceneData.sunlightDirection = glm::vec4(0, 1, 0.5, 1.f);
 }
 
 void Hush::VulkanRenderer::InitRendering()
@@ -423,6 +413,9 @@ void Hush::VulkanRenderer::InitRendering()
 
     // Must be called after the pipelines and descriptors are initialized
     this->InitDefaultData();
+
+    this->m_editorCamera = EditorCamera(70.0f, static_cast<float>(this->m_width), static_cast<float>(this->m_height), 0.1f, 10000.f);
+
 }
 
 void Hush::VulkanRenderer::Dispose()
