@@ -11,7 +11,11 @@ namespace Hush {
 		void OnUpdate();
 
 		glm::mat4 GetViewMatrix() const noexcept;
+
+		glm::mat4 GetOrientationMatrix() const noexcept;
+
 	private:
 		glm::vec3 m_position;
+		float m_yaw, m_pitch;
 	};
 }
