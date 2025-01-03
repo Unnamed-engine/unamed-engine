@@ -9,6 +9,7 @@
 #include "IEditorPanel.hpp"
 #include <memory>
 #include <unordered_map>
+#include <typeindex>
 
 namespace Hush
 {
@@ -19,6 +20,11 @@ namespace Hush
 
         void DrawPanels();
 
+        template <class T>
+        [[nodiscard]] T& GetPanel() const noexcept {
+            return *static_cast<T*>(this->m_activePanels.at(typeid(T)).get());
+        }
+
         static bool Spinner(const char *label, float radius, int thickness,
                             const uint32_t &color = 3435973836u /*Default button color*/);
 
@@ -26,14 +32,18 @@ namespace Hush
 
         static void DockSpace();
 
+        static UI& Get();
+
       private:
         static void DrawPlayButton();
+
+        static inline UI* s_instance;
 
         template <class T> static std::unique_ptr<T> CreatePanel()
         {
             return std::make_unique<T>();
         }
-        std::vector<std::unique_ptr<IEditorPanel>> m_activePanels;
+        std::unordered_map<std::type_index, std::unique_ptr<IEditorPanel>> m_activePanels;
     };
 
 } // namespace Hush

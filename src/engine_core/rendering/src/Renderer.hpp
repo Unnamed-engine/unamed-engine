@@ -33,13 +33,13 @@ namespace Hush
 
         virtual void InitImGui() = 0;
 
-        virtual void Draw() = 0;
+        virtual void Draw(float delta) = 0;
 
         /// @brief Each renderer will have to implement a way of updating all the objects
         /// inside of the scene, these are instances of the IRenderableNode, which is a common interface
         /// for all renderers, but additional render data (i.e drawContext) might be needed by their underlying implementation
         /// (see VulkanMeshNode for an example)
-        virtual void UpdateSceneObjects() = 0;
+        virtual void UpdateSceneObjects(float delta) = 0;
 
         /// @brief Initializes all the internal structures needed to begin rendering, call after a swapchain has been
         /// created!

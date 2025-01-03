@@ -11,7 +11,7 @@ Hush::EditorCamera::EditorCamera(float degFov, float width, float height, float 
 	this->m_pitch = 0.0f;
 }
 
-void Hush::EditorCamera::OnUpdate()
+void Hush::EditorCamera::OnUpdate(float delta)
 {
 	glm::mat4 viewMatrix = this->GetViewMatrix();
 	glm::vec3 right = glm::vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
@@ -19,7 +19,7 @@ void Hush::EditorCamera::OnUpdate()
 	glm::vec3 forward = -glm::vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
 
 	glm::vec3 cameraDir(0.f);
-	float speed = 0.1f; // Adjust speed as necessary
+	float speed = 100.0f; // Adjust speed as necessary
 
 	if (InputManager::IsKeyDown(EKeyCode::W)) {
 		cameraDir += forward;
@@ -41,12 +41,12 @@ void Hush::EditorCamera::OnUpdate()
 	}
 
 	if (InputManager::GetMouseScrollAcceleration().y != 0.0f) {
-		constexpr float zoomSpeed = 2.f;
-		this->m_position += forward * InputManager::GetMouseScrollAcceleration().y * zoomSpeed;
+		constexpr float zoomSpeed = 100.f;
+		this->m_position += forward * InputManager::GetMouseScrollAcceleration().y * zoomSpeed * delta;
 	}
 
 	if (cameraDir != glm::vec3{ 0.0f }) {
-		this->m_position += glm::normalize(cameraDir) * speed;
+		this->m_position += glm::normalize(cameraDir) * speed * delta;
 	}
 
 	if (!InputManager::GetMouseButtonPressed(EMouseButton::Right)) {
@@ -54,9 +54,9 @@ void Hush::EditorCamera::OnUpdate()
 	}
 	glm::vec2 mouseAcceleration = InputManager::GetMouseAcceleration();
 	if (mouseAcceleration != glm::vec2{ 0.0f }) {
-		constexpr float mouseLookSpeed = 0.003f;
-		this->m_yaw += mouseAcceleration.x * mouseLookSpeed;
-		this->m_pitch += mouseAcceleration.y * mouseLookSpeed;
+		constexpr float mouseLookSpeed = 3.0f;
+		this->m_yaw += mouseAcceleration.x * mouseLookSpeed * delta;
+		this->m_pitch += mouseAcceleration.y * mouseLookSpeed * delta;
 	}
 
 }

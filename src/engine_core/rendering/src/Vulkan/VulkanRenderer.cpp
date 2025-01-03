@@ -34,6 +34,8 @@
 #include <glm/gtx/transform.hpp>
 #include "../../../editor/src/DebugTooltip.hpp"
 #include "VulkanMeshNode.hpp"
+#include "../../../editor/src/UI.hpp"
+#include "../../../editor/src/StatsPanel.hpp"
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -270,15 +272,15 @@ void Hush::VulkanRenderer::InitImGui()
     this->m_uiForwarder = std::make_unique<VulkanImGuiForwarder>();
     this->m_uiForwarder->SetupImGui(this);
 }
-
-void Hush::VulkanRenderer::Draw()
+ 
+void Hush::VulkanRenderer::Draw(float delta)
 {
     if (this->m_resizeRequested) {
         this->ResizeSwapchain();
         return;
     }
     
-    this->UpdateSceneObjects();
+    this->UpdateSceneObjects(delta);
 
     //Prepare and flush the render command
     FrameData &currentFrame = this->GetCurrentFrame();
@@ -370,9 +372,15 @@ void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
     this->m_uiForwarder->HandleEvent(event);
 }
 
-void Hush::VulkanRenderer::UpdateSceneObjects()
+void Hush::VulkanRenderer::UpdateSceneObjects(float delta)
 {
-    this->m_editorCamera.OnUpdate();
+    this->frameTimer += delta;
+    StatsPanel& statsPanel = UI::Get().GetPanel<StatsPanel>();
+    
+    statsPanel.SetDeltaTime(delta);
+
+
+    this->m_editorCamera.OnUpdate(delta);
 	this->m_mainDrawContext.clear();
 	// Test stuff just to show that it works... to be refactored into a more dynamic approach
 	glm::mat4 topMatrix{ 1.0f };
@@ -564,9 +572,10 @@ void Hush::VulkanRenderer::Configure(vkb::Instance vkbInstance)
     vkb::DeviceBuilder deviceBuilder(vkbPhysicalDevice);
 
     vkb::Device vkbDevice = deviceBuilder.build().value();
-
     this->m_device = vkbDevice.device;
     this->m_vulkanPhysicalDevice = vkbDevice.physical_device;
+    StatsPanel& stats = UI::Get().GetPanel<StatsPanel>();
+    stats.SetDeviceName(vkbDevice.physical_device.name);
 
     volkLoadDevice(this->m_device);
 
@@ -1157,6 +1166,8 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
 	vkCmdSetScissor(cmd, 0, 1, &scissor);	
 
+    int32_t drawCalls = 0;
+
 	for (const VkRenderObject& draw : this->m_mainDrawContext) {
 
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
@@ -1169,9 +1180,12 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 		pushConstants.vertexBuffer = draw.vertexBufferAddress;
 		pushConstants.worldMatrix = draw.transform;
 		vkCmdPushConstants(cmd, draw.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
-
 		vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
+        drawCalls++;
 	}
+
+    StatsPanel& statsPanel = UI::Get().GetPanel<StatsPanel>();
+    statsPanel.SetDrawCallsCount(drawCalls);
 
 	vkCmdEndRendering(cmd);
 }

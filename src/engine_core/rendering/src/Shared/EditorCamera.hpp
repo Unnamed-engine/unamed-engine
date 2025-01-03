@@ -8,7 +8,7 @@ namespace Hush {
 
 		EditorCamera(float degFov, float width, float height, float nearP, float farP);
 
-		void OnUpdate();
+		void OnUpdate(float delta);
 
 		glm::mat4 GetViewMatrix() const noexcept;
 

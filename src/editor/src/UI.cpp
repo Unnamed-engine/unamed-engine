@@ -7,15 +7,21 @@
 #include "ContentPanel.hpp"
 #include "DebugUI.hpp"
 #include "DebugTooltip.hpp"
+#include "StatsPanel.hpp"
+
+#define ADD_PANEL(panelsMap, panelType) panelsMap[typeid(panelType)] = CreatePanel<panelType>()
 
 Hush::UI::UI()
 {
-	this->m_activePanels.push_back(CreatePanel<TitleBarMenuPanel>());
-	this->m_activePanels.push_back(CreatePanel<ScenePanel>());
-	this->m_activePanels.push_back(CreatePanel<HierarchyPanel>());
-	this->m_activePanels.push_back(CreatePanel<ContentPanel>());
-	this->m_activePanels.push_back(CreatePanel<DebugUI>());
-	this->m_activePanels.push_back(CreatePanel<DebugTooltip>());
+    ADD_PANEL(this->m_activePanels, TitleBarMenuPanel);
+	ADD_PANEL(this->m_activePanels, TitleBarMenuPanel);
+	ADD_PANEL(this->m_activePanels, ScenePanel);
+	ADD_PANEL(this->m_activePanels, HierarchyPanel);
+	ADD_PANEL(this->m_activePanels, ContentPanel);
+	ADD_PANEL(this->m_activePanels, DebugUI);
+	ADD_PANEL(this->m_activePanels, DebugTooltip);
+    ADD_PANEL(this->m_activePanels, StatsPanel);
+    s_instance = this;
 }
 
 void Hush::UI::DrawPanels()
@@ -23,9 +29,9 @@ void Hush::UI::DrawPanels()
     UI::DockSpace();
     UI::DrawPlayButton();
     // NOLINTNEXTLINE
-    for (uint32_t i = 0; i < this->m_activePanels.size(); i++)
+    for (auto& pairEntry : this->m_activePanels)
     {
-        this->m_activePanels.at(i)->OnRender();
+        pairEntry.second->OnRender();
     }
     ImGui::EndFrame();
 	ImGui::Render();
@@ -115,6 +121,12 @@ void Hush::UI::DockSpace()
     ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), dockspaceFlags);
     ImGui::End();
 }
+
+Hush::UI& Hush::UI::Get()
+{
+    return *s_instance;
+}
+
 void Hush::UI::DrawPlayButton()
 {
     UI::BeginToolBar();
