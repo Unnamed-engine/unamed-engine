@@ -31,6 +31,7 @@ const HPP_FILE: &str = include_str!("../../templates/.hpp");
 const PS1_FILE: &str = include_str!("../../templates/.ps1");
 const PY_FILE: &str = include_str!("../../templates/.py");
 const SH_FILE: &str = include_str!("../../templates/.sh");
+const RS_FILE: &str = include_str!("../../templates/.rs");
 
 lazy_static! {
     static ref TEMPLATES: HashMap<&'static str, &'static str> = {
@@ -42,6 +43,7 @@ lazy_static! {
         m.insert("ps1", PS1_FILE);
         m.insert("py", PY_FILE);
         m.insert("sh", SH_FILE);
+        m.insert("rs", RS_FILE);
 
         m
     };
