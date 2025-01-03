@@ -1,5 +1,0 @@
-add_test( [==[CFile tests]==] [==[Y:/Programming/C++/Hush-Engine/src/engine_core/filesystem/Debug/HushFilesystemTest.exe]==] [==[CFile tests]==]  )
-set_tests_properties( [==[CFile tests]==] PROPERTIES WORKING_DIRECTORY [==[Y:/Programming/C++/Hush-Engine/src/engine_core/filesystem]==])
-add_test( [==[CFileSystem tests]==] [==[Y:/Programming/C++/Hush-Engine/src/engine_core/filesystem/Debug/HushFilesystemTest.exe]==] [==[CFileSystem tests]==]  )
-set_tests_properties( [==[CFileSystem tests]==] PROPERTIES WORKING_DIRECTORY [==[Y:/Programming/C++/Hush-Engine/src/engine_core/filesystem]==])
-set( HushFilesystemTest_TESTS [==[CFile tests]==] [==[CFileSystem tests]==])
