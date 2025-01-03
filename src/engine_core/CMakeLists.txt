@@ -31,6 +31,7 @@ set(ENGINE_LIBS
         HushUtils
         HushCSharp
         HushFilesystem
+        HushThreading
 )
 
 if (WIN32)

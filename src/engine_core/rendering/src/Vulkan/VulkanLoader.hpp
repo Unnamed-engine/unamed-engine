@@ -7,7 +7,6 @@
 #include "GPUMeshBuffers.hpp"
 #include <fastgltf/types.hpp>
 #include <Result.hpp>
-#include "Error.hpp"
 
 
 namespace Hush {

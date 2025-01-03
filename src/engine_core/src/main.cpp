@@ -1,38 +1,50 @@
 #include "HushEngine.hpp"
 
+#include <Executor.hpp>
 #include <FileSystem.hpp>
+#include <Logger.hpp>
 #include <VirtualFilesystem.hpp>
 #include <filesystem/CFileSystem/CFileSystem.hpp>
 
+Hush::Task<int> func()
+{
+    co_return 5;
+}
+
+Hush::Task<void> ExecutorTask()
+{
+    uint32_t counter = 0;
+    while (counter < 5)
+    {
+        ++counter;
+    }
+    co_return;
+}
+
 int main()
 {
-    Hush::VirtualFilesystem vfs;
+    Hush::ThreadPool threadPool(std::thread::hardware_concurrency());
 
-    vfs.MountFileSystem<Hush::CFileSystem>("res://", ".");
+    auto returnResult = threadPool.ScheduleTask(ExecutorTask());
 
-    auto fileResult = vfs.OpenFile("res://vcpkg.json");
+    auto threadFunction = []() {
+        auto currentThreadId = std::this_thread::get_id();
+        auto currentThreadIdHash = std::hash<std::thread::id>{}(currentThreadId);
+        LogFormat(Hush::ELogLevel::Info, "Thread ID: {}", currentThreadIdHash);
+    };
 
-    if (!fileResult)
+    std::vector<Hush::Task<void>> tasks;
+
+    for (int i = 0; i < 20; ++i)
     {
-        std::cerr << "Failed to read file data" << std::endl;
-        return 1;
+        tasks.push_back(threadPool.ScheduleFunction(threadFunction));
     }
 
-    auto file = std::move(fileResult.assume_value());
+    threadPool.WaitUntilDone();
 
-    std::vector<std::byte> data(file->GetMetadata().size);
+    Hush::LogInfo("Finished");
 
-    if (const auto read = file->Read(data); !read)
-    {
-        std::cerr << "Failed to read file data" << std::endl;
-        return 1;
-    }
-
-    // Print the data
-    for (const auto byte : data)
-    {
-        std::cout << static_cast<char>(byte);
-    }
+    // executor.Execute(func());
 
     // Hush::HushEngine engine;
     //

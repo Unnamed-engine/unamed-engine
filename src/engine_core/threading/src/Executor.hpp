@@ -6,140 +6,234 @@
 
 #pragma once
 
-#include "Task.hpp"
+#include "async/Task.hpp"
+#include "async/TaskTraits.hpp"
+
+#include <Result.hpp>
+#include <array>
 #include <chrono>
 #include <coroutine>
 #include <deque>
+#include <functional>
 #include <mutex>
 #include <random>
-#include <semaphore>
+#include <span>
 #include <thread>
 #include <vector>
 
 namespace Hush
 {
-    struct JobTask
+    class ThreadPool;
+    class TaskOperation;
+
+    namespace impl
     {
-        struct promise_type
+        /// WorkerQueue is a queue of tasks that a worker thread will execute.
+        /// This is a lock-free queue.
+        class WorkerQueue
         {
-          public:
-            JobTask get_return_object()
-            {
-                return JobTask{std::coroutine_handle<promise_type>::from_promise(*this)};
-            }
+            /// The size of the worker queue. This is fixed.
+            constexpr static std::size_t WORKER_QUEUE_SIZE = 256;
 
-            std::suspend_always initial_suspend()
-            {
-                return {};
-            }
+        public:
+            /// Constructs a new worker queue.
+            WorkerQueue(ThreadPool *threadPool);
 
-            std::suspend_always final_suspend()
-            {
-                return {};
-            }
+            /// Move constructor.
+            /// @param other Other WorkerQueue to move from.
+            WorkerQueue(WorkerQueue &&other) noexcept;
 
-            void return_void()
-            {
-            }
+            /// Move assignment operator.
+            /// @param other Other WorkerQueue to move from.
+            /// @return self
+            WorkerQueue &operator=(WorkerQueue &&other) noexcept;
 
-            void unhandled_exception()
-            {
-                std::terminate();
-            }
+            /// Pushes a task to the queue.
+            /// @param task The task to push to the queue.
+            void Push(TaskOperation *task);
+
+            /// Pops a task from the queue.
+            /// @return A task from the queue. nullptr if the queue is empty.
+            TaskOperation *Pop();
+
+            /// Steals a task from the queue.
+            /// @return A task from the queue. nullptr if the queue is empty.
+            TaskOperation *Steal();
+
+            /// Steals a task from the global queue.
+            /// @return A task from the global queue. nullptr if the global queue is empty.
+            TaskOperation *StealFromGlobalQueue();
+
+        private:
+            /// Reference to the thread pool, it is used to push tasks to the global queue in case the worker queue is
+            /// full.
+            ThreadPool *m_threadPool;
+
+            /// The worker queue
+            std::array<TaskOperation *, WORKER_QUEUE_SIZE> m_tasks;
+
+            /// Bottom of the queue
+            std::atomic<std::int64_t> m_bottom;
+
+            /// Top of the queue
+            std::atomic<std::int64_t> m_top;
         };
 
-        void Resume()
+        class WorkerThread
         {
-            m_coroutine.resume();
+        public:
+
+            // Default number of tasks to steal from the global queue.
+            constexpr static std::uint32_t DEFAULT_STEAL_COUNT = 1;
+
+            /// Options for the worker thread.
+            struct ThreadOptions
+            {
+                /// The affinity of the worker thread, if 0, the worker thread will have no affinity.
+                std::int32_t affinity = 0;
+            };
+
+            /// Enum class that represents the state of the worker thread.
+            enum class EWorkerThreadState
+            {
+                None,
+                Starting,
+                Running,
+                Idle,
+                Stopping,
+                Stopped
+            };
+
+            /// Enum class that represents the stop mode of the worker thread.
+            enum class EStopMode : bool
+            {
+                FinishPendingTasks,
+                StopImmediately
+            };
+
+            /// Constructs a new worker thread.
+            /// @param threadPool The thread pool that the worker thread belongs to.
+            /// @param threadIndex The index of the worker thread.
+            /// @param options The options for the worker thread.
+            WorkerThread(std::unique_ptr<WorkerQueue> workerQueue,
+                         std::uint32_t threadIndex,
+                         ThreadOptions options) noexcept;
+
+            WorkerThread(const WorkerThread &) = delete;
+            WorkerThread &operator=(const WorkerThread &) = delete;
+
+            /// Starts the worker thread.
+            void Start();
+
+            /// Gets the state of the worker thread.
+            EWorkerThreadState GetState() const noexcept
+            {
+                return m_state;
+            }
+
+            /// Stops the worker thread.
+            /// @param stopMode Stop mode to use.
+            void Stop(EStopMode stopMode);
+
+            /// Gets the options for the worker thread.
+            /// @return The options for the worker thread.
+            [[nodiscard]]
+            ThreadOptions GetOptions() const noexcept
+            {
+                return m_options;
+            }
+
+            void Notify();
+
+        private:
+            /// The main function of the worker thread.
+            /// @param stopToken Stop token for the worker thread.
+            void ThreadFunction(std::stop_token stopToken);
+
+            /// The worker queue for the worker thread.
+            std::unique_ptr<WorkerQueue> m_workerQueue;
+            std::jthread m_thread;
+            std::condition_variable m_conditionVariable;
+            std::mutex m_mutex;
+            std::uint32_t m_threadIndex;
+            ThreadOptions m_options;
+            EWorkerThreadState m_state = EWorkerThreadState::None;
+            EStopMode m_stopMode = EStopMode::FinishPendingTasks;
+        };
+
+    }; // namespace impl
+
+    class TaskOperation
+    {
+        friend class ThreadPool;
+        friend class impl::WorkerThread;
+
+        explicit TaskOperation(ThreadPool &executor, std::int32_t threadAffinity = -1) noexcept
+            : m_executor(executor),
+              m_threadAffinity(threadAffinity)
+        {
         }
 
-        void WaitUntilFinished()
+    public:
+        bool await_ready() const noexcept
         {
-            m_semaphore.acquire();
+            return false;
         }
 
-        [[nodiscard]] bool WaitUntil(std::chrono::steady_clock::time_point time)
-        {
-            return m_semaphore.try_acquire_until(time);
-        }
+        void await_suspend(std::coroutine_handle<> awaitingCoroutine) noexcept;
 
-      private:
-        JobTask(std::coroutine_handle<promise_type> coroutine) : m_coroutine(coroutine), m_semaphore(0)
-        {
-        }
+        void await_resume() noexcept;
 
-        std::coroutine_handle<promise_type> m_coroutine;
-        std::binary_semaphore m_semaphore;
+    private:
+        ThreadPool &m_executor;
+        std::coroutine_handle<> m_awaitingCoroutine = nullptr;
+        std::int32_t m_threadAffinity = -1;
     };
 
-    /// The executor class is responsible for managing a thread pool and executing tasks (C++20 coroutines) in parallel.
-    /// The executor follows the following architecture:
-    /// A main thread creates a pool of worker threads, each worker thread is responsible for executing tasks.
-    /// Each worker thread has a task queue, where tasks are pushed to.
-    ///
-    /// The main thread is responsible for pushing tasks to the worker threads.
-    ///
-    /// If a worker thread finishes executing a task, it will pop a new task from the task queue.
-    /// If the task queue is empty, the worker thread will steal a task from another random worker thread.
-    class Executor
+    class ThreadPool
     {
-        /// A job queue is a queue of tasks that a worker thread will execute.
-        /// TODO: Use a lock-free queue instead of a mutex
-        struct JobQueue
+    public:
+        ThreadPool(std::uint32_t numThreads);
+
+        ~ThreadPool();
+
+        static ThreadPool Create(std::uint32_t numThreads);
+
+        TaskOperation ScheduleCurrentTask();
+
+        template <typename Fn, typename... Args>
+            requires std::invocable<Fn, Args...>
+        Task<void> ScheduleFunction(Fn &&function, Args &&...args)
         {
-            std::deque<JobTask> tasks;
-            std::mutex mutex;
-            std::mt19937_64 randomEngine;
-        };
+            auto task = [this, function = std::forward<Fn>(function),
+                         args = std::make_tuple(std::forward<Args>(args)...)]() -> Task<void> {
+                co_await ScheduleCurrentTask();
+                std::apply(function, args);
+                co_return;
+            };
 
-        struct ThreadInfo
-        {
-            std::jthread thread;
-            std::stop_token stopToken;
-        };
+            auto operation = task();
+            operation.GetCoroutine().resume();
 
-      public:
-        // A TaskHandle is a handle to a task that is being executed by a worker thread.
-        // It allows the main thread to wait for the task to finish executing
-        struct TaskHandle
-        {
-            void wait()
-            {
-                // Use a wait condition variable
-            }
+            return std::move(operation);
+        }
 
-          private:
-        };
+        Task<void> ScheduleTask(Task<void> &&task);
 
-        /// Constructor that creates a thread pool with a specified number of threads.
-        /// @param numThreads The number of threads in the thread pool. If 0, the number of threads will be equal to the
-        /// number of hardware threads.
-        explicit Executor(std::uint32_t numThreads);
+        void WaitUntilDone();
 
-        /// Default constructor. Creates a thread pool with the number of threads equal to the number of hardware
-        /// threads. If this value is 1, the executor will create 4 threads.
-        Executor();
+    private:
+        TaskOperation *StealFromGlobalQueue();
 
-        ~Executor();
+        void NotifyWorkerThreads();
 
-        Executor(const Executor &) = delete;
-        Executor &operator=(const Executor &) = delete;
+        void PushToGlobalQueue(TaskOperation *task);
 
-        Executor(Executor &&) = default;
-        Executor &operator=(Executor &&) = default;
+        friend class impl::WorkerQueue;
+        friend class TaskOperation;
 
-        TaskHandle execute(std::coroutine_handle<> task);
-
-      private:
-        void CreateThreads(std::uint32_t numThreads);
-
-        void ThreadFunction(std::stop_token stopToken, uint32_t threadIndex);
-
-        std::coroutine_handle<void> StealTask(uint32_t currentThreadIndex);
-
-        std::random_device m_randomDevice;
-        std::mt19937_64 m_randomEngine;
-        std::vector<std::jthread> m_threads;
-        std::vector<JobQueue> m_jobQueues;
+        std::vector<std::unique_ptr<impl::WorkerThread>> m_workerThreads;
+        std::vector<TaskOperation *> m_globalQueue;
+        std::mutex m_globalQueueMutex;
     };
 } // namespace Hush
