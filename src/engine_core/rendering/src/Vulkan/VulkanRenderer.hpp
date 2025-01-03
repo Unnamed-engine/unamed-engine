@@ -189,7 +189,6 @@ namespace Hush
         VkExtent2D m_swapChainExtent{};
         VkExtent2D m_drawExtent{};
         float m_renderScale = 1.0f;
-        float frameTimer = 0.0f;
         uint32_t m_width = 0u;
         uint32_t m_height = 0u;
         // draw resources

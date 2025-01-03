@@ -374,7 +374,6 @@ void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
 
 void Hush::VulkanRenderer::UpdateSceneObjects(float delta)
 {
-    this->frameTimer += delta;
     StatsPanel& statsPanel = UI::Get().GetPanel<StatsPanel>();
     
     statsPanel.SetDeltaTime(delta);
