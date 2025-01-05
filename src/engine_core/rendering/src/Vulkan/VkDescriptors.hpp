@@ -69,6 +69,10 @@ struct DescriptorAllocatorGrowable
         float ratio;
     };
 
+    DescriptorAllocatorGrowable() = default;
+    
+    DescriptorAllocatorGrowable(VkDevice device, uint32_t initialSets, const std::vector<PoolSizeRatio>& poolRatios);
+
     void Init(VkDevice device, uint32_t initialSets, const std::vector<PoolSizeRatio> &poolRatios);
     void ClearPool(VkDevice device);
     void DestroyPool(VkDevice device);

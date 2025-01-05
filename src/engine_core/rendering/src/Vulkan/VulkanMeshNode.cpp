@@ -37,3 +37,23 @@ Hush::MeshAsset& Hush::VulkanMeshNode::GetMesh()
 {
 	return *this->m_mesh.get();
 }
+
+void Hush::VulkanMeshNode::SetMaterialDataBuffer(VulkanAllocatedBuffer materialDataBuffer)
+{
+	this->m_materialDataBuffer = materialDataBuffer;
+}
+
+void Hush::VulkanMeshNode::SetDescriptorPool(DescriptorAllocatorGrowable descriptorPool)
+{
+	this->m_descriptorPool = descriptorPool;
+}
+
+const Hush::VulkanAllocatedBuffer& Hush::VulkanMeshNode::GetMaterialDataBuffer() const noexcept
+{
+	return this->m_materialDataBuffer;
+}
+
+const DescriptorAllocatorGrowable& Hush::VulkanMeshNode::GetDescriptorPool() const noexcept
+{
+	return this->m_descriptorPool;
+}

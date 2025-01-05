@@ -545,6 +545,36 @@ FrameData &Hush::VulkanRenderer::GetLastFrame() noexcept
     return this->m_frames.at((this->m_frameNumber - 1) % FRAME_OVERLAP);
 }
 
+VkSampler Hush::VulkanRenderer::GetDefaultSamplerLinear() noexcept
+{
+    return this->m_defaultSamplerLinear;
+}
+
+VkSampler Hush::VulkanRenderer::GetDefaultSamplerNearest() noexcept
+{
+    return this->m_defaultSamplerNearest;
+}
+
+AllocatedImage Hush::VulkanRenderer::GetDefaultWhiteImage() const noexcept
+{
+    return this->m_whiteImage;
+}
+
+Hush::GLTFMetallicRoughness& Hush::VulkanRenderer::GetMetalRoughMaterial() noexcept
+{
+    return this->m_metalRoughMaterial;
+}
+
+DescriptorAllocatorGrowable& Hush::VulkanRenderer::GlobalDescriptorAllocator() noexcept
+{
+    return this->m_globalDescriptorAllocator;
+}
+
+VmaAllocator Hush::VulkanRenderer::GetVmaAllocator() noexcept
+{
+    return this->m_allocator;
+}
+
 void Hush::VulkanRenderer::Configure(vkb::Instance vkbInstance)
 {
     // Get our features
@@ -1070,7 +1100,7 @@ void Hush::VulkanRenderer::InitDefaultData() noexcept
 	//write the buffer
 	auto* sceneUniformData = static_cast<GLTFMetallicRoughness::MaterialConstants*>(materialConstants.GetAllocation()->GetMappedData());
 	sceneUniformData->colorFactors = glm::vec4{ 1,1,1,1 };
-	sceneUniformData->metal_rough_factors = glm::vec4{ 1,0.5,0,0 };
+	sceneUniformData->metalRoughFactors = glm::vec4{ 1,0.5,0,0 };
 
     this->m_mainDeletionQueue.PushFunction([&] {
         materialConstants.Dispose(m_allocator);
@@ -1093,7 +1123,9 @@ void Hush::VulkanRenderer::InitDefaultData() noexcept
 		newNode->SetWorldTransform(glm::mat4{ 1.f });
 
 		for (GeoSurface& s : newNode->GetMesh().surfaces) {
-			s.material = std::make_shared<VkMaterialInstance>(this->m_defaultData);
+            if (s.material == nullptr) {
+			    s.material = std::make_shared<VkMaterialInstance>(this->m_defaultData);
+            }
 		}
 
 		this->m_loadedNodes[m->name] = std::move(newNode);
@@ -1318,7 +1350,7 @@ void Hush::VulkanRenderer::DestroyImage(const AllocatedImage& img)
 	vmaDestroyImage(this->m_allocator, img.image, img.allocation);
 }
 
-AllocatedImage Hush::VulkanRenderer::CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped /*= false*/)
+AllocatedImage Hush::VulkanRenderer::CreateImage(const void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped /*= false*/)
 {
     
 	uint32_t dataSize = size.depth * size.width * size.height * 4;
