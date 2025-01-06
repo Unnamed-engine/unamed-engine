@@ -1,7 +1,7 @@
 # Threading support subproject
 
 add_library(HushThreading OBJECT
-        src/Executor.cpp
+        src/ThreadPool.cpp
 )
 
 target_include_directories(HushThreading PUBLIC src)
@@ -13,3 +13,10 @@ if (linux)
 endif()
 
 set_all_warnings(HushThreading)
+
+add_test_target(
+        TARGET_NAME HushThreadingTest
+        ENGINE_TARGET HushThreading
+        SRCS tests/ThreadPool.test.cpp
+        HEADER_DIRS tests
+)

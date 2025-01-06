@@ -310,7 +310,7 @@ namespace Hush
         }
 
     private:
-        std::coroutine_handle<promise_type> m_coroutine;
+        std::coroutine_handle<promise_type> m_coroutine = nullptr;
     };
 
     namespace impl

@@ -1,14 +1,15 @@
-/*! \file Executor.cpp
+/*! \file ThreadPool.cpp
     \author Alan Ramirez
     \date 2024-12-25
-    \brief Executor class implementation
+    \brief ThreadPool implementation
 */
-#include "Executor.hpp"
+#include "ThreadPool.hpp"
 #include "Platform.hpp"
 #include "async/Task.hpp"
 
 #include <Logger.hpp>
 #include <mutex>
+#include <semaphore>
 #include <thread>
 
 Hush::impl::WorkerQueue::WorkerQueue(ThreadPool *threadPool)
@@ -53,9 +54,9 @@ void Hush::impl::WorkerQueue::Push(TaskOperation *task)
 {
     // Push a task to the bottom of the queue
     std::int64_t bottom = m_bottom.load(std::memory_order_acquire);
-    std::int64_t newBottom = (bottom + 1) % WORKER_QUEUE_SIZE;
+    std::int64_t newBottom = bottom + 1;
 
-    if (newBottom == m_top.load(std::memory_order_acquire))
+    if (newBottom >= WORKER_QUEUE_SIZE)
     {
         // The queue is full
         // Push the task to the global queue
@@ -63,7 +64,7 @@ void Hush::impl::WorkerQueue::Push(TaskOperation *task)
         return;
     }
 
-    m_tasks[bottom] = task;
+    m_tasks[bottom % WORKER_QUEUE_SIZE] = task;
 
     // Ok, just update the bottom
     m_bottom.store(newBottom, std::memory_order_release);
@@ -72,12 +73,14 @@ void Hush::impl::WorkerQueue::Push(TaskOperation *task)
 Hush::TaskOperation *Hush::impl::WorkerQueue::Pop()
 {
     // Pops a task from the bottom of the queue.
-    std::int64_t bottom = m_bottom.fetch_sub(1, std::memory_order_acq_rel);
+    m_bottom.fetch_sub(1, std::memory_order_acquire);
+    std::int64_t bottom = m_bottom.load(std::memory_order_acquire);
     std::int64_t top = m_top.load(std::memory_order_acquire);
 
-    if (top >= bottom)
+    if (top > bottom)
     {
         // The queue is empty
+        m_bottom.store(top, std::memory_order_release);
         return nullptr;
     }
 
@@ -115,7 +118,7 @@ Hush::TaskOperation *Hush::impl::WorkerQueue::Steal()
     }
 
     // Non-empty queue, just steal the task
-    TaskOperation *task = m_tasks[top];
+    TaskOperation *task = m_tasks[top % WORKER_QUEUE_SIZE];
 
     if (!m_top.compare_exchange_strong(top, (top + 1) % WORKER_QUEUE_SIZE))
     {
@@ -126,9 +129,19 @@ Hush::TaskOperation *Hush::impl::WorkerQueue::Steal()
     // Task stolen
     return task;
 }
-Hush::TaskOperation *Hush::impl::WorkerQueue::StealFromGlobalQueue()
+
+std::size_t Hush::impl::WorkerQueue::TakeFromGlobalQueue()
 {
-    return m_threadPool->StealFromGlobalQueue();
+    std::array<TaskOperation *, WorkerThread::DEFAULT_STEAL_COUNT> tasks;
+
+    const auto tasksAcquired = m_threadPool->StealFromGlobalQueue(tasks);
+
+    for (std::size_t i = 0; i < tasksAcquired; ++i)
+    {
+        Push(tasks[i]);
+    }
+
+    return tasksAcquired;
 }
 
 #if HUSH_PLATFORM_WIN
@@ -160,38 +173,40 @@ Hush::impl::WorkerThread::WorkerThread(std::unique_ptr<WorkerQueue> workerQueue,
         }
 
         // Wait until the thread is started
-        {
-            std::unique_lock lock(m_mutex);
-            m_conditionVariable.wait(lock, [this] { return m_state == EWorkerThreadState::Starting; });
-        }
+        m_state.wait(EWorkerThreadState::Starting, std::memory_order_acquire);
 
         // Start the thread function
         this->ThreadFunction(stopToken);
     });
 }
 
+Hush::impl::WorkerThread::~WorkerThread()
+{
+}
+
 void Hush::impl::WorkerThread::Start()
 {
     // Notify the thread to start with the condition variable
-    m_state = EWorkerThreadState::Starting;
-    m_conditionVariable.notify_one();
+    m_state.store(EWorkerThreadState::Starting, std::memory_order_release);
+    m_state.notify_all();
 }
 
 void Hush::impl::WorkerThread::Stop(EStopMode stopMode)
 {
     m_stopMode = stopMode;
-    m_state = EWorkerThreadState::Stopping;
 
     // Stop the thread
     m_thread.request_stop();
 
-    // Just in case the thread is sleeping, wake it up
-    m_conditionVariable.notify_one();
+    // Ensure to wake up the thread
+    m_state.store(EWorkerThreadState::Running, std::memory_order_release);
+    m_state.notify_all();
 }
 
 void Hush::impl::WorkerThread::Notify()
 {
-    m_conditionVariable.notify_one();
+    m_state.store(EWorkerThreadState::Running, std::memory_order_release);
+    m_state.notify_all();
 }
 
 void Hush::impl::WorkerThread::ThreadFunction(std::stop_token stopToken)
@@ -209,17 +224,17 @@ void Hush::impl::WorkerThread::ThreadFunction(std::stop_token stopToken)
         }
 
         // No task could be stolen, check the global queue
+        std::size_t acquiredTasks = 0;
         if (task == nullptr)
         {
-
-            task = m_workerQueue->StealFromGlobalQueue();
+            acquiredTasks = m_workerQueue->TakeFromGlobalQueue();
         }
 
         if (task != nullptr)
         {
             task->m_awaitingCoroutine.resume();
         }
-        else
+        else if (acquiredTasks == 0)
         {
             // No task could be found either in the local, external local, or global queue.
             // Perform some busy waiting
@@ -227,17 +242,13 @@ void Hush::impl::WorkerThread::ThreadFunction(std::stop_token stopToken)
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
             // No tasks to execute, put the thread to sleep
-            m_state = EWorkerThreadState::Idle;
-            std::unique_lock lock(m_mutex);
-            m_conditionVariable.wait(lock, [this] { return m_state != EWorkerThreadState::Idle; });
-
-            m_state = EWorkerThreadState::Running;
-
-            lock.unlock();
-
+            // Check if the thread is stopping
+            m_state.store(EWorkerThreadState::Idle);
+            m_state.wait(EWorkerThreadState::Idle, std::memory_order_acquire);
             // Thread woke up, continue execution
         }
     }
+    m_state.store(EWorkerThreadState::Stopping, std::memory_order_relaxed);
 
     if (m_stopMode == EStopMode::FinishPendingTasks)
     {
@@ -250,6 +261,7 @@ void Hush::impl::WorkerThread::ThreadFunction(std::stop_token stopToken)
             task = m_workerQueue->Pop();
         }
     }
+    m_state.store(EWorkerThreadState::Stopped, std::memory_order_relaxed);
 }
 
 void Hush::TaskOperation::await_suspend(std::coroutine_handle<> awaitingCoroutine) noexcept
@@ -283,12 +295,6 @@ Hush::ThreadPool::ThreadPool(std::uint32_t numThreads)
 
         m_workerThreads.emplace_back(std::make_unique<impl::WorkerThread>(std::move(workerQueue), i, threadOptions));
     }
-
-    // Start the threads
-    for (auto &thread : m_workerThreads)
-    {
-        thread->Start();
-    }
 }
 Hush::ThreadPool::~ThreadPool()
 {
@@ -302,7 +308,7 @@ Hush::TaskOperation Hush::ThreadPool::ScheduleCurrentTask()
     return TaskOperation(*this);
 }
 
-Hush::Task<void> WrapTask(Hush::ThreadPool& threadPool, Hush::Task<void> function)
+Hush::Task<void> WrapTask(Hush::ThreadPool &threadPool, Hush::Task<void> function)
 {
     co_await threadPool.ScheduleCurrentTask();
     co_await function;
@@ -317,6 +323,15 @@ Hush::Task<void> Hush::ThreadPool::ScheduleTask(Task<void> &&task)
     return std::move(wrapper);
 }
 
+void Hush::ThreadPool::Start()
+{
+    // Start the threads
+    for (auto &thread : m_workerThreads)
+    {
+        thread->Start();
+    }
+}
+
 void Hush::ThreadPool::WaitUntilDone()
 {
     // Wait until all threads are Idle AND the global queue is empty
@@ -326,25 +341,38 @@ void Hush::ThreadPool::WaitUntilDone()
     while (!allThreadsIdle || !globalQueueEmpty)
     {
         allThreadsIdle = true;
-        globalQueueEmpty = true;
-
-        for (auto &thread : m_workerThreads)
-        {
-            if (thread->GetState() != impl::WorkerThread::EWorkerThreadState::Idle)
-            {
-                allThreadsIdle = false;
-                break;
-            }
-        }
 
         {
             std::lock_guard lock(m_globalQueueMutex);
             globalQueueEmpty = m_globalQueue.empty();
         }
 
+        if (!globalQueueEmpty)
+        {
+            for (auto &thread : m_workerThreads)
+            {
+                // Check if thread is not idle or stopped
+                if (thread->GetState() != impl::WorkerThread::EWorkerThreadState::Idle &&
+                    thread->GetState() != impl::WorkerThread::EWorkerThreadState::Stopped)
+                {
+                    allThreadsIdle = false;
+                    break;
+                }
+            }
+
+            // For each idle thread, notify that the global queue is not empty
+            for (auto &thread : m_workerThreads)
+            {
+                if (thread->GetState() == impl::WorkerThread::EWorkerThreadState::Idle)
+                {
+                    thread->Notify();
+                }
+            }
+        }
+
         if (!allThreadsIdle || !globalQueueEmpty)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
     }
 }
@@ -365,14 +393,31 @@ Hush::TaskOperation *Hush::ThreadPool::StealFromGlobalQueue()
     return task;
 }
 
+std::size_t Hush::ThreadPool::StealFromGlobalQueue(std::span<TaskOperation *> tasks)
+{
+    std::size_t stolenTasks = 0;
+
+    std::lock_guard lock(m_globalQueueMutex);
+    for (std::size_t i = 0; i < tasks.size(); ++i)
+    {
+        if (m_globalQueue.empty())
+        {
+            break;
+        }
+
+        tasks[i] = m_globalQueue.back();
+        m_globalQueue.pop_back();
+        ++stolenTasks;
+    }
+
+    return stolenTasks;
+}
+
 void Hush::ThreadPool::NotifyWorkerThreads()
 {
     for (auto &thread : m_workerThreads)
     {
-        if (thread->GetState() == impl::WorkerThread::EWorkerThreadState::Idle)
-        {
-            thread->Notify();
-        }
+        thread->Notify();
     }
 }
 
@@ -382,4 +427,3 @@ void Hush::ThreadPool::PushToGlobalQueue(TaskOperation *task)
     std::lock_guard lock(m_globalQueueMutex);
     m_globalQueue.push_back(task);
 }
-

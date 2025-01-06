@@ -1,7 +1,7 @@
-/*! \file Executor.hpp
+/*! \file ThreadPool.hpp
     \author Alan Ramirez
     \date 2024-12-25
-    \brief Executor class implementation
+    \brief ThreadPool implementation
 */
 
 #pragma once
@@ -60,9 +60,10 @@ namespace Hush
             /// @return A task from the queue. nullptr if the queue is empty.
             TaskOperation *Steal();
 
-            /// Steals a task from the global queue.
-            /// @return A task from the global queue. nullptr if the global queue is empty.
-            TaskOperation *StealFromGlobalQueue();
+            /// Steals a number of tasks from the global queue.
+            /// @return The number of stolen tasks.
+            [[nodiscard]]
+            std::size_t TakeFromGlobalQueue();
 
         private:
             /// Reference to the thread pool, it is used to push tasks to the global queue in case the worker queue is
@@ -82,9 +83,8 @@ namespace Hush
         class WorkerThread
         {
         public:
-
             // Default number of tasks to steal from the global queue.
-            constexpr static std::uint32_t DEFAULT_STEAL_COUNT = 1;
+            constexpr static std::uint32_t DEFAULT_STEAL_COUNT = 10;
 
             /// Options for the worker thread.
             struct ThreadOptions
@@ -122,6 +122,8 @@ namespace Hush
             WorkerThread(const WorkerThread &) = delete;
             WorkerThread &operator=(const WorkerThread &) = delete;
 
+            ~WorkerThread();
+
             /// Starts the worker thread.
             void Start();
 
@@ -143,6 +145,7 @@ namespace Hush
                 return m_options;
             }
 
+            /// Notifies the worker thread.
             void Notify();
 
         private:
@@ -153,11 +156,9 @@ namespace Hush
             /// The worker queue for the worker thread.
             std::unique_ptr<WorkerQueue> m_workerQueue;
             std::jthread m_thread;
-            std::condition_variable m_conditionVariable;
-            std::mutex m_mutex;
             std::uint32_t m_threadIndex;
             ThreadOptions m_options;
-            EWorkerThreadState m_state = EWorkerThreadState::None;
+            std::atomic<EWorkerThreadState> m_state = EWorkerThreadState::None;
             EStopMode m_stopMode = EStopMode::FinishPendingTasks;
         };
 
@@ -193,38 +194,54 @@ namespace Hush
     class ThreadPool
     {
     public:
+        /// Constructs a new thread pool.
+        /// @param numThreads The number of threads in the thread pool.
         ThreadPool(std::uint32_t numThreads);
 
+        /// Destroys the thread pool.
         ~ThreadPool();
 
-        static ThreadPool Create(std::uint32_t numThreads);
+        ThreadPool(const ThreadPool &) = delete;
+        ThreadPool &operator=(const ThreadPool &) = delete;
 
+        ThreadPool(ThreadPool &&) = delete;
+        ThreadPool &operator=(ThreadPool &&) = delete;
+
+        /// Schedules the current task.
+        /// @return TaskOperation that schedules the current task.
         TaskOperation ScheduleCurrentTask();
 
-        template <typename Fn, typename... Args>
-            requires std::invocable<Fn, Args...>
-        Task<void> ScheduleFunction(Fn &&function, Args &&...args)
-        {
-            auto task = [this, function = std::forward<Fn>(function),
-                         args = std::make_tuple(std::forward<Args>(args)...)]() -> Task<void> {
-                co_await ScheduleCurrentTask();
-                std::apply(function, args);
-                co_return;
-            };
-
-            auto operation = task();
-            operation.GetCoroutine().resume();
-
-            return std::move(operation);
-        }
-
+        /// Schedules a task.
+        /// @param task The task to schedule.
+        /// @return Task wrapped that will be executed by the thread pool.
         Task<void> ScheduleTask(Task<void> &&task);
 
+        /// Starts the thread pool.
+        void Start();
+
+        /// Waits until all tasks are done.
+        /// TODO: should we remove this function?, i.e. implement a way to wait for a specific task?, something like
+        /// Hush::SyncWait(task)
         void WaitUntilDone();
 
+        /// @return The number of threads in the thread pool.
+        [[nodiscard]]
+        std::uint32_t GetNumThreads() const noexcept
+        {
+            return static_cast<std::uint32_t>(m_workerThreads.size());
+        }
+
     private:
+        /// Steals a task from the global queue.
+        /// @return A task from the global queue.
         TaskOperation *StealFromGlobalQueue();
 
+        /// Notifies the worker threads.
+        /// @param tasks Span that will contain the tasks that were stolen.
+        /// @return The number of tasks that were stolen.
+        std::size_t StealFromGlobalQueue(std::span<TaskOperation *> tasks);
+
+        /// Notifies the worker threads.
         void NotifyWorkerThreads();
 
         void PushToGlobalQueue(TaskOperation *task);
