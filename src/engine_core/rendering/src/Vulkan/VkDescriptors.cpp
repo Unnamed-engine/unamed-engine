@@ -198,31 +198,30 @@ void DescriptorAllocatorGrowable::DestroyPool(VkDevice device)
 
 VkDescriptorSet DescriptorAllocatorGrowable::Allocate(VkDevice device, VkDescriptorSetLayout layout, void *pNext)
 {
-    // get or create a pool to allocate from
+ //get or create a pool to allocate from
     VkDescriptorPool poolToUse = this->GetPool(device);
 
-    VkDescriptorSetAllocateInfo allocInfo = {};
-    allocInfo.pNext = pNext;
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = poolToUse;
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &layout;
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.pNext = pNext;
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = poolToUse;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &layout;
 
-    VkDescriptorSet ds = nullptr;
-    VkResult result = vkAllocateDescriptorSets(device, &allocInfo, &ds);
+	VkDescriptorSet ds = nullptr;
+	VkResult result = vkAllocateDescriptorSets(device, &allocInfo, &ds);
 
-    // allocation failed. Try again
-    if (result == VK_ERROR_OUT_OF_POOL_MEMORY || result == VK_ERROR_FRAGMENTED_POOL)
-    {
+    //allocation failed. Try again
+    if (result == VK_ERROR_OUT_OF_POOL_MEMORY || result == VK_ERROR_FRAGMENTED_POOL) {
 
         this->m_fullPools.push_back(poolToUse);
-
+    
         poolToUse = this->GetPool(device);
         allocInfo.descriptorPool = poolToUse;
 
-        HUSH_VK_ASSERT(vkAllocateDescriptorSets(device, &allocInfo, &ds), "Failed to allocate descriptor sets!");
+       HUSH_VK_ASSERT(vkAllocateDescriptorSets(device, &allocInfo, &ds), "Failed to allocate descriptor sets");
     }
-
+  
     this->m_readyPools.push_back(poolToUse);
     return ds;
 }

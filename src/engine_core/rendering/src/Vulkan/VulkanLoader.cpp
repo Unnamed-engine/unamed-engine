@@ -83,14 +83,6 @@ Hush::MeshAsset Hush::VulkanLoader::CreateMeshAssetFromGltfMesh(const fastgltf::
 
 		resultMesh.surfaces.push_back(surfaceToAdd);
 	}
-
-	// display the vertex normals
-	constexpr bool overrideColors = true;
-	if (overrideColors) {
-		for (Vertex& vtx : verticesRef) {
-			vtx.color = glm::vec4(vtx.normal, 1.f);
-		}
-	}
 	resultMesh.meshBuffers = engine->UploadMesh(indicesRef, verticesRef);
 	return resultMesh;
 }
