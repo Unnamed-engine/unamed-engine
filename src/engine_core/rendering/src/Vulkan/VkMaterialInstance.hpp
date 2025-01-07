@@ -9,7 +9,7 @@ namespace Hush {
 
 	struct VkMaterialPipeline {
 		VkPipeline pipeline;
-		VkPipelineLayout layout;
+		VkPipelineLayout layout; //Check deletion queue?
 	};
 
 	struct VkMaterialInstance {

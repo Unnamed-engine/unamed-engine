@@ -50,7 +50,7 @@ namespace Hush {
 			else {
 				matData.pipeline = &opaquePipeline;
 			}
-
+			//Not initialized material layout here from VkLoader
 			matData.materialSet = descriptorAllocator.Allocate(device, this->materialLayout);
 
 

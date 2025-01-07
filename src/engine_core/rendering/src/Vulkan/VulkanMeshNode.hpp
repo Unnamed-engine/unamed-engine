@@ -8,8 +8,9 @@ namespace Hush {
 	class VulkanMeshNode final : public RenderableNode {
 
 	public:
-		//TODO: remove ownership
+		//TODO: remove from public stuff
 		std::shared_ptr<MeshAsset> m_mesh;
+		DescriptorAllocatorGrowable m_descriptorPool;
 
 		VulkanMeshNode(std::shared_ptr<MeshAsset> mesh);
 
@@ -25,6 +26,5 @@ namespace Hush {
 
 	private:
 		VulkanAllocatedBuffer m_materialDataBuffer;
-		DescriptorAllocatorGrowable m_descriptorPool;
 	};
 }

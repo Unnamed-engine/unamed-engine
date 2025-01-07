@@ -148,11 +148,6 @@ VkDescriptorSet DescriptorAllocator::Allocate(VkDevice device, VkDescriptorSetLa
     return ds;
 }
 
-DescriptorAllocatorGrowable::DescriptorAllocatorGrowable(VkDevice device, uint32_t initialSets, const std::vector<PoolSizeRatio>& poolRatios)
-{
-    this->Init(device, initialSets, poolRatios);
-}
-
 void DescriptorAllocatorGrowable::Init(VkDevice device, uint32_t initialSets,
                                        const std::vector<PoolSizeRatio> &poolRatios)
 {
