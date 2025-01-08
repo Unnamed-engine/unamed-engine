@@ -8,6 +8,10 @@
 std::optional<std::vector<std::shared_ptr<Hush::MeshAsset>>> Hush::VulkanLoader::LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath)
 {
 	fastgltf::GltfDataBuffer data;
+	if (!std::filesystem::exists(filePath)) {
+		LogFormat(ELogLevel::Error, "Failed to load mesh at {} file does not exist", filePath.string());
+		return std::nullopt;
+	}
 	data.loadFromFile(filePath);
 
 	constexpr fastgltf::Options loadingOptions = fastgltf::Options::LoadGLBBuffers | fastgltf::Options::LoadExternalBuffers;

@@ -22,6 +22,10 @@ void Hush::HushEngine::Run()
     this->Init();
 
     this->m_app->Init();
+    
+    std::chrono::microseconds elapsed;
+
+    constexpr float microToSeconds = 10000000.0f;
 
     while (this->m_isApplicationRunning)
     {
@@ -43,13 +47,12 @@ void Hush::HushEngine::Run()
 
         this->m_app->OnRender();
 
-        rendererImpl->Draw();
+        rendererImpl->Draw(elapsed.count() / microToSeconds);
 
         this->m_app->OnPostRender();
 
         std::chrono::system_clock::time_point end = std::chrono::system_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        (void)elapsed;
+        elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     }
 }
 

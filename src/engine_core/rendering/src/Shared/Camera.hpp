@@ -19,7 +19,7 @@ namespace Hush
         Camera(float degFov, float width, float height, float nearP, float farP) noexcept;
         virtual ~Camera() = default;
 
-        [[nodiscard]] const glm::mat4 &GetProjectionMatrix() const noexcept;
+        glm::mat4 GetProjectionMatrix() const noexcept;
 
         [[nodiscard]] const glm::mat4 &GetUnreversedProjectionMatrix() const noexcept;
 
@@ -29,7 +29,7 @@ namespace Hush
                                             const float nearP, const float farP);
 
       protected:
-        // NOLINTNEXTÑINE
+        // NOLINTNEXTLINE
         float m_exposure = 0.8f; //Aribtrary value (inspired from the Hazel Engine)
       private:
         glm::mat4 m_projectionMatrix = glm::mat4(1.0f);

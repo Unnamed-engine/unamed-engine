@@ -34,6 +34,8 @@
 #include <glm/gtx/transform.hpp>
 #include "../../../editor/src/DebugTooltip.hpp"
 #include "VulkanMeshNode.hpp"
+#include "../../../editor/src/UI.hpp"
+#include "../../../editor/src/StatsPanel.hpp"
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -270,15 +272,15 @@ void Hush::VulkanRenderer::InitImGui()
     this->m_uiForwarder = std::make_unique<VulkanImGuiForwarder>();
     this->m_uiForwarder->SetupImGui(this);
 }
-
-void Hush::VulkanRenderer::Draw()
+ 
+void Hush::VulkanRenderer::Draw(float delta)
 {
     if (this->m_resizeRequested) {
         this->ResizeSwapchain();
         return;
     }
     
-    this->UpdateSceneObjects();
+    this->UpdateSceneObjects(delta);
 
     //Prepare and flush the render command
     FrameData &currentFrame = this->GetCurrentFrame();
@@ -370,32 +372,27 @@ void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
     this->m_uiForwarder->HandleEvent(event);
 }
 
-void Hush::VulkanRenderer::UpdateSceneObjects()
+void Hush::VulkanRenderer::UpdateSceneObjects(float delta)
 {
-    static glm::vec3 monkeyPos(0, 0, -5);
-
-    if (InputManager::IsKeyDown(EKeyCode::D)) {
-        monkeyPos.x += 0.01f;
-    }
-	if (InputManager::IsKeyDown(EKeyCode::A)) {
-		monkeyPos.x -= 0.01f;
-	}
-	if (InputManager::IsKeyDown(EKeyCode::S)) {
-		monkeyPos.z += 0.01f;
-	}
-	if (InputManager::IsKeyDown(EKeyCode::W)) {
-		monkeyPos.z -= 0.01f;
-	}
-    this->m_mainDrawContext.clear();
-    // Test stuff just to show that it works... to be refactored into a more dynamic approach
-    glm::mat4 topMatrix{ 1.0f };
-    this->m_loadedNodes["Suzanne"]->Draw(topMatrix, &this->m_mainDrawContext);
-
-	glm::vec3 scale = DebugTooltip::s_debugTooltip == nullptr ? glm::vec3{ 0.0f } : DebugTooltip::s_debugTooltip->GetScale();
-    glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), scale);
+    StatsPanel& statsPanel = UI::Get().GetPanel<StatsPanel>();
     
-    this->m_sceneData.view = glm::translate(monkeyPos) * scaleMat;
+    statsPanel.SetDeltaTime(delta);
+
+
+    this->m_editorCamera.OnUpdate(delta);
+	this->m_mainDrawContext.clear();
+	// Test stuff just to show that it works... to be refactored into a more dynamic approach
+	glm::mat4 topMatrix{ 1.0f };
+    for (auto& nodeEntry : this->m_loadedNodes)
+    {
+	    nodeEntry.second->Draw(topMatrix, &this->m_mainDrawContext);
+    }
+
+    glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), glm::vec3{1.0f});
+    glm::mat4 viewMatrix = this->m_editorCamera.GetViewMatrix() * scaleMat;
+	this->m_sceneData.view = viewMatrix;
 	// camera projection
+	//this->m_sceneData.proj = this->m_editorCamera.GetProjectionMatrix();
 	this->m_sceneData.proj = glm::perspective(glm::radians(70.f), (float)this->m_width / (float)this->m_height, 10000.f, 0.1f);
 
 	// invert the Y direction on projection matrix so that we are more similar
@@ -406,7 +403,7 @@ void Hush::VulkanRenderer::UpdateSceneObjects()
 	//some default lighting parameters
 	this->m_sceneData.ambientColor = glm::vec4(.1f);
 	this->m_sceneData.sunlightColor = glm::vec4(1.f);
-    this->m_sceneData.sunlightDirection = glm::vec4(0, 1, 0.5, 1.f);
+	this->m_sceneData.sunlightDirection = glm::vec4(0, 1, 0.5, 1.f);
 }
 
 void Hush::VulkanRenderer::InitRendering()
@@ -423,6 +420,9 @@ void Hush::VulkanRenderer::InitRendering()
 
     // Must be called after the pipelines and descriptors are initialized
     this->InitDefaultData();
+
+    this->m_editorCamera = EditorCamera(70.0f, static_cast<float>(this->m_width), static_cast<float>(this->m_height), 0.1f, 10000.f);
+
 }
 
 void Hush::VulkanRenderer::Dispose()
@@ -571,9 +571,10 @@ void Hush::VulkanRenderer::Configure(vkb::Instance vkbInstance)
     vkb::DeviceBuilder deviceBuilder(vkbPhysicalDevice);
 
     vkb::Device vkbDevice = deviceBuilder.build().value();
-
     this->m_device = vkbDevice.device;
     this->m_vulkanPhysicalDevice = vkbDevice.physical_device;
+    StatsPanel& stats = UI::Get().GetPanel<StatsPanel>();
+    stats.SetDeviceName(vkbDevice.physical_device.name);
 
     volkLoadDevice(this->m_device);
 
@@ -717,7 +718,7 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\monkey.glb";
+    std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\house.glb";
     this->m_testMeshes = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
 }
 
@@ -1164,6 +1165,8 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
 	vkCmdSetScissor(cmd, 0, 1, &scissor);	
 
+    int32_t drawCalls = 0;
+
 	for (const VkRenderObject& draw : this->m_mainDrawContext) {
 
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
@@ -1176,9 +1179,12 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 		pushConstants.vertexBuffer = draw.vertexBufferAddress;
 		pushConstants.worldMatrix = draw.transform;
 		vkCmdPushConstants(cmd, draw.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
-
 		vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
+        drawCalls++;
 	}
+
+    StatsPanel& statsPanel = UI::Get().GetPanel<StatsPanel>();
+    statsPanel.SetDrawCallsCount(drawCalls);
 
 	vkCmdEndRendering(cmd);
 }
