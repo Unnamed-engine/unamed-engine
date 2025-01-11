@@ -2,6 +2,7 @@
 
 add_library(HushThreading OBJECT
         src/ThreadPool.cpp
+        src/async/SyncWait.cpp
 )
 
 target_include_directories(HushThreading PUBLIC src)

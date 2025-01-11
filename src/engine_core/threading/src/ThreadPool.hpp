@@ -6,22 +6,18 @@
 
 #pragma once
 
+#include "async/SyncWait.hpp"
 #include "async/Task.hpp"
-#include "async/TaskTraits.hpp"
 
-#include <Result.hpp>
 #include <array>
 #include <chrono>
 #include <coroutine>
-#include <deque>
-#include <functional>
 #include <mutex>
-#include <random>
 #include <span>
 #include <thread>
 #include <vector>
 
-namespace Hush
+namespace Hush::Threading
 {
     class ThreadPool;
     class TaskOperation;
@@ -161,17 +157,40 @@ namespace Hush
             std::atomic<EWorkerThreadState> m_state = EWorkerThreadState::None;
             EStopMode m_stopMode = EStopMode::FinishPendingTasks;
         };
-
     }; // namespace impl
+
+    struct Job : public SyncWaitTask<void>
+    {
+        using SyncWaitTask<void>::SyncWaitTask;
+        using SyncWaitTask<void>::operator=;
+        using SyncWaitTask<void>::promise;
+        using SyncWaitTask<void>::GetCoroutine;
+
+        void Wait()
+        {
+            promise().Wait();
+        }
+
+    private:
+        friend class ThreadPool;
+
+        void Start(std::atomic_flag &done)
+        {
+            promise().Start(done);
+        }
+    };
 
     class TaskOperation
     {
         friend class ThreadPool;
         friend class impl::WorkerThread;
 
-        explicit TaskOperation(ThreadPool &executor, std::int32_t threadAffinity = -1) noexcept
+        explicit TaskOperation(ThreadPool &executor,
+                               std::int32_t threadAffinity = -1,
+                               bool shouldDeleteWhenDone = false)
             : m_executor(executor),
-              m_threadAffinity(threadAffinity)
+              m_threadAffinity(threadAffinity),
+              m_shouldDeleteWhenDone(shouldDeleteWhenDone)
         {
         }
 
@@ -181,18 +200,21 @@ namespace Hush
             return false;
         }
 
-        void await_suspend(std::coroutine_handle<> awaitingCoroutine) noexcept;
+        void await_suspend(std::coroutine_handle<Job::promise_type> awaitingCoroutine) noexcept;
 
         void await_resume() noexcept;
 
     private:
         ThreadPool &m_executor;
+        std::atomic_flag m_done;
         std::coroutine_handle<> m_awaitingCoroutine = nullptr;
         std::int32_t m_threadAffinity = -1;
+        bool m_shouldDeleteWhenDone = false;
     };
 
     class ThreadPool
     {
+
     public:
         /// Constructs a new thread pool.
         /// @param numThreads The number of threads in the thread pool.
@@ -214,7 +236,30 @@ namespace Hush
         /// Schedules a task.
         /// @param task The task to schedule.
         /// @return Task wrapped that will be executed by the thread pool.
-        Task<void> ScheduleTask(Task<void> &&task);
+        Job ScheduleTask(Task<void> &&task);
+
+        /// Schedules a function.
+        /// @tparam Fn The function type.
+        /// @tparam Args The arguments type.
+        /// @param function Function to schedule.
+        /// @param args Arguments to pass to the function.
+        /// @return Task wrapped that will be executed by the thread pool.
+        template <typename Fn, typename... Args>
+        requires !Concepts::Awaitable<std::invoke_result_t<Fn, Args...>>
+        Job ScheduleFunction(Fn &&function, Args &&...args)
+        {
+            auto wrapper = [this](Fn &&function, Args &&...args) -> Job {
+                co_await ScheduleCurrentTask();
+                std::invoke(std::forward<Fn>(function), std::forward<Args>(args)...);
+                co_return;
+            };
+
+            Job task = wrapper(std::forward<Fn>(function), std::forward<Args>(args)...);
+
+            task.GetCoroutine().resume();
+
+            return std::move(task);
+        }
 
         /// Starts the thread pool.
         void Start();
@@ -241,9 +286,13 @@ namespace Hush
         /// @return The number of tasks that were stolen.
         std::size_t StealFromGlobalQueue(std::span<TaskOperation *> tasks);
 
+        static Job WrapTask(ThreadPool &threadPool, Task<void> function);
+
         /// Notifies the worker threads.
         void NotifyWorkerThreads();
 
+        /// Pushes a task to the global queue.
+        /// @param task The task to push to the global queue.
         void PushToGlobalQueue(TaskOperation *task);
 
         friend class impl::WorkerQueue;
@@ -253,4 +302,9 @@ namespace Hush
         std::vector<TaskOperation *> m_globalQueue;
         std::mutex m_globalQueueMutex;
     };
-} // namespace Hush
+
+    inline void Wait(Job &job)
+    {
+        job.Wait();
+    }
+} // namespace Hush::Threading

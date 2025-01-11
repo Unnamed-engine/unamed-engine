@@ -11,7 +11,7 @@
 #include <coroutine>
 #include <variant>
 
-namespace Hush
+namespace Hush::Threading
 {
     template <typename T>
     struct Task;

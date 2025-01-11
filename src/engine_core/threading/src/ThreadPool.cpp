@@ -12,7 +12,7 @@
 #include <semaphore>
 #include <thread>
 
-Hush::impl::WorkerQueue::WorkerQueue(ThreadPool *threadPool)
+Hush::Threading::impl::WorkerQueue::WorkerQueue(ThreadPool *threadPool)
     : m_threadPool(threadPool),
       m_tasks(),
       m_bottom(0),
@@ -20,7 +20,7 @@ Hush::impl::WorkerQueue::WorkerQueue(ThreadPool *threadPool)
 {
 }
 
-Hush::impl::WorkerQueue::WorkerQueue(WorkerQueue &&other) noexcept
+Hush::Threading::impl::WorkerQueue::WorkerQueue(WorkerQueue &&other) noexcept
     : m_threadPool(other.m_threadPool),
       m_bottom(other.m_bottom.load(std::memory_order_acquire)),
       m_top(other.m_top.load(std::memory_order_acquire)),
@@ -31,7 +31,7 @@ Hush::impl::WorkerQueue::WorkerQueue(WorkerQueue &&other) noexcept
     other.m_top.store(0, std::memory_order_release);
 }
 
-Hush::impl::WorkerQueue &Hush::impl::WorkerQueue::operator=(WorkerQueue &&other) noexcept
+Hush::Threading::impl::WorkerQueue &Hush::Threading::impl::WorkerQueue::operator=(WorkerQueue &&other) noexcept
 {
     if (this == &other)
     {
@@ -50,7 +50,7 @@ Hush::impl::WorkerQueue &Hush::impl::WorkerQueue::operator=(WorkerQueue &&other)
     return *this;
 }
 
-void Hush::impl::WorkerQueue::Push(TaskOperation *task)
+void Hush::Threading::impl::WorkerQueue::Push(TaskOperation *task)
 {
     // Push a task to the bottom of the queue
     std::int64_t bottom = m_bottom.load(std::memory_order_acquire);
@@ -70,7 +70,7 @@ void Hush::impl::WorkerQueue::Push(TaskOperation *task)
     m_bottom.store(newBottom, std::memory_order_release);
 }
 
-Hush::TaskOperation *Hush::impl::WorkerQueue::Pop()
+Hush::Threading::TaskOperation *Hush::Threading::impl::WorkerQueue::Pop()
 {
     // Pops a task from the bottom of the queue.
     m_bottom.fetch_sub(1, std::memory_order_acquire);
@@ -105,7 +105,7 @@ Hush::TaskOperation *Hush::impl::WorkerQueue::Pop()
     return task;
 }
 
-Hush::TaskOperation *Hush::impl::WorkerQueue::Steal()
+Hush::Threading::TaskOperation *Hush::Threading::impl::WorkerQueue::Steal()
 {
     // Steals a task from the top of the queue.
     std::int64_t top = m_top.load(std::memory_order_acquire);
@@ -130,7 +130,7 @@ Hush::TaskOperation *Hush::impl::WorkerQueue::Steal()
     return task;
 }
 
-std::size_t Hush::impl::WorkerQueue::TakeFromGlobalQueue()
+std::size_t Hush::Threading::impl::WorkerQueue::TakeFromGlobalQueue()
 {
     std::array<TaskOperation *, WorkerThread::DEFAULT_STEAL_COUNT> tasks;
 
@@ -159,9 +159,9 @@ static void SetCurrentThreadAffinity(std::uint32_t affinity)
 #endif
 }
 
-Hush::impl::WorkerThread::WorkerThread(std::unique_ptr<WorkerQueue> workerQueue,
-                                       std::uint32_t threadIndex,
-                                       ThreadOptions options) noexcept
+Hush::Threading::impl::WorkerThread::WorkerThread(std::unique_ptr<WorkerQueue> workerQueue,
+                                                  std::uint32_t threadIndex,
+                                                  ThreadOptions options) noexcept
     : m_workerQueue(std::move(workerQueue)),
       m_threadIndex(threadIndex),
       m_options(options)
@@ -180,18 +180,18 @@ Hush::impl::WorkerThread::WorkerThread(std::unique_ptr<WorkerQueue> workerQueue,
     });
 }
 
-Hush::impl::WorkerThread::~WorkerThread()
+Hush::Threading::impl::WorkerThread::~WorkerThread()
 {
 }
 
-void Hush::impl::WorkerThread::Start()
+void Hush::Threading::impl::WorkerThread::Start()
 {
     // Notify the thread to start with the condition variable
     m_state.store(EWorkerThreadState::Starting, std::memory_order_release);
     m_state.notify_all();
 }
 
-void Hush::impl::WorkerThread::Stop(EStopMode stopMode)
+void Hush::Threading::impl::WorkerThread::Stop(EStopMode stopMode)
 {
     m_stopMode = stopMode;
 
@@ -199,17 +199,17 @@ void Hush::impl::WorkerThread::Stop(EStopMode stopMode)
     m_thread.request_stop();
 
     // Ensure to wake up the thread
-    m_state.store(EWorkerThreadState::Running, std::memory_order_release);
+    m_state.store(EWorkerThreadState::Stopping, std::memory_order_release);
     m_state.notify_all();
 }
 
-void Hush::impl::WorkerThread::Notify()
+void Hush::Threading::impl::WorkerThread::Notify()
 {
     m_state.store(EWorkerThreadState::Running, std::memory_order_release);
     m_state.notify_all();
 }
 
-void Hush::impl::WorkerThread::ThreadFunction(std::stop_token stopToken)
+void Hush::Threading::impl::WorkerThread::ThreadFunction(std::stop_token stopToken)
 {
     m_state = EWorkerThreadState::Running;
 
@@ -233,6 +233,11 @@ void Hush::impl::WorkerThread::ThreadFunction(std::stop_token stopToken)
         if (task != nullptr)
         {
             task->m_awaitingCoroutine.resume();
+
+            if (task->m_shouldDeleteWhenDone)
+            {
+                task->m_awaitingCoroutine.destroy();
+            }
         }
         else if (acquiredTasks == 0)
         {
@@ -241,14 +246,19 @@ void Hush::impl::WorkerThread::ThreadFunction(std::stop_token stopToken)
             // TODO: Perform some busy waiting while checking for tasks in the current thread's queue
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
-            // No tasks to execute, put the thread to sleep
-            // Check if the thread is stopping
-            m_state.store(EWorkerThreadState::Idle);
-            m_state.wait(EWorkerThreadState::Idle, std::memory_order_acquire);
-            // Thread woke up, continue execution
+
+            // It might be that the thread was stopped after the while loop condition was checked, so we need to check again before going to sleep
+            if (m_state.load(std::memory_order_acquire) == EWorkerThreadState::Running)
+            {
+                // No tasks to execute, put the thread to sleep
+                m_state.store(EWorkerThreadState::Idle);
+                m_state.wait(EWorkerThreadState::Idle, std::memory_order_acquire);
+                // Thread woke up, continue execution
+            }
+
+
         }
     }
-    m_state.store(EWorkerThreadState::Stopping, std::memory_order_relaxed);
 
     if (m_stopMode == EStopMode::FinishPendingTasks)
     {
@@ -264,20 +274,21 @@ void Hush::impl::WorkerThread::ThreadFunction(std::stop_token stopToken)
     m_state.store(EWorkerThreadState::Stopped, std::memory_order_relaxed);
 }
 
-void Hush::TaskOperation::await_suspend(std::coroutine_handle<> awaitingCoroutine) noexcept
+void Hush::Threading::TaskOperation::await_suspend(std::coroutine_handle<Job::promise_type> awaitingCoroutine) noexcept
 {
     m_awaitingCoroutine = awaitingCoroutine;
     m_executor.PushToGlobalQueue(this);
 
-    // Notify any sleeping thread
+    awaitingCoroutine.promise().SetFlag(m_done);
+
     m_executor.NotifyWorkerThreads();
 }
 
-void Hush::TaskOperation::await_resume() noexcept
+void Hush::Threading::TaskOperation::await_resume() noexcept
 {
 }
 
-Hush::ThreadPool::ThreadPool(std::uint32_t numThreads)
+Hush::Threading::ThreadPool::ThreadPool(std::uint32_t numThreads)
 {
     const std::uint32_t numHardwareThreads = std::thread::hardware_concurrency();
     // Get hardware threads
@@ -296,25 +307,25 @@ Hush::ThreadPool::ThreadPool(std::uint32_t numThreads)
         m_workerThreads.emplace_back(std::make_unique<impl::WorkerThread>(std::move(workerQueue), i, threadOptions));
     }
 }
-Hush::ThreadPool::~ThreadPool()
+Hush::Threading::ThreadPool::~ThreadPool()
 {
     for (auto &thread : m_workerThreads)
     {
         thread->Stop(impl::WorkerThread::EStopMode::StopImmediately);
     }
 }
-Hush::TaskOperation Hush::ThreadPool::ScheduleCurrentTask()
+Hush::Threading::TaskOperation Hush::Threading::ThreadPool::ScheduleCurrentTask()
 {
     return TaskOperation(*this);
 }
 
-Hush::Task<void> WrapTask(Hush::ThreadPool &threadPool, Hush::Task<void> function)
+Hush::Threading::Job Hush::Threading::ThreadPool::WrapTask(ThreadPool &threadPool, Task<void> function)
 {
     co_await threadPool.ScheduleCurrentTask();
     co_await function;
 }
 
-Hush::Task<void> Hush::ThreadPool::ScheduleTask(Task<void> &&task)
+Hush::Threading::Job Hush::Threading::ThreadPool::ScheduleTask(Task<void> &&task)
 {
     auto wrapper = WrapTask(*this, std::move(task));
 
@@ -323,7 +334,7 @@ Hush::Task<void> Hush::ThreadPool::ScheduleTask(Task<void> &&task)
     return std::move(wrapper);
 }
 
-void Hush::ThreadPool::Start()
+void Hush::Threading::ThreadPool::Start()
 {
     // Start the threads
     for (auto &thread : m_workerThreads)
@@ -332,7 +343,7 @@ void Hush::ThreadPool::Start()
     }
 }
 
-void Hush::ThreadPool::WaitUntilDone()
+void Hush::Threading::ThreadPool::WaitUntilDone()
 {
     // Wait until all threads are Idle AND the global queue is empty
     bool allThreadsIdle = false;
@@ -377,7 +388,7 @@ void Hush::ThreadPool::WaitUntilDone()
     }
 }
 
-Hush::TaskOperation *Hush::ThreadPool::StealFromGlobalQueue()
+Hush::Threading::TaskOperation *Hush::Threading::ThreadPool::StealFromGlobalQueue()
 {
     // Lock the global queue
     std::lock_guard lock(m_globalQueueMutex);
@@ -393,7 +404,7 @@ Hush::TaskOperation *Hush::ThreadPool::StealFromGlobalQueue()
     return task;
 }
 
-std::size_t Hush::ThreadPool::StealFromGlobalQueue(std::span<TaskOperation *> tasks)
+std::size_t Hush::Threading::ThreadPool::StealFromGlobalQueue(std::span<TaskOperation *> tasks)
 {
     std::size_t stolenTasks = 0;
 
@@ -413,7 +424,7 @@ std::size_t Hush::ThreadPool::StealFromGlobalQueue(std::span<TaskOperation *> ta
     return stolenTasks;
 }
 
-void Hush::ThreadPool::NotifyWorkerThreads()
+void Hush::Threading::ThreadPool::NotifyWorkerThreads()
 {
     for (auto &thread : m_workerThreads)
     {
@@ -421,7 +432,7 @@ void Hush::ThreadPool::NotifyWorkerThreads()
     }
 }
 
-void Hush::ThreadPool::PushToGlobalQueue(TaskOperation *task)
+void Hush::Threading::ThreadPool::PushToGlobalQueue(TaskOperation *task)
 {
     // Lock the global queue
     std::lock_guard lock(m_globalQueueMutex);
