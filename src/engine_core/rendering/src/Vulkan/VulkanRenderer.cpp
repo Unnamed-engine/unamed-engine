@@ -32,10 +32,7 @@
 #include "GPUMeshBuffers.hpp"
 #include "VulkanLoader.hpp"
 #include <glm/gtx/transform.hpp>
-#include "../../../editor/src/DebugTooltip.hpp"
 #include "VulkanMeshNode.hpp"
-#include "../../../editor/src/UI.hpp"
-#include "../../../editor/src/StatsPanel.hpp"
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -374,10 +371,6 @@ void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
 
 void Hush::VulkanRenderer::UpdateSceneObjects(float delta)
 {
-    StatsPanel& statsPanel = UI::Get().GetPanel<StatsPanel>();
-    
-    statsPanel.SetDeltaTime(delta);
-
 
     this->m_editorCamera.OnUpdate(delta);
 	this->m_mainDrawContext.clear();
@@ -573,9 +566,7 @@ void Hush::VulkanRenderer::Configure(vkb::Instance vkbInstance)
     vkb::Device vkbDevice = deviceBuilder.build().value();
     this->m_device = vkbDevice.device;
     this->m_vulkanPhysicalDevice = vkbDevice.physical_device;
-    StatsPanel& stats = UI::Get().GetPanel<StatsPanel>();
-    stats.SetDeviceName(vkbDevice.physical_device.name);
-
+    
     volkLoadDevice(this->m_device);
 
     VkPhysicalDeviceProperties properties{};
@@ -1182,10 +1173,6 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 		vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
         drawCalls++;
 	}
-
-    StatsPanel& statsPanel = UI::Get().GetPanel<StatsPanel>();
-    statsPanel.SetDrawCallsCount(drawCalls);
-
 	vkCmdEndRendering(cmd);
 }
 
