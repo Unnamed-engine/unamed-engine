@@ -20,6 +20,8 @@ namespace Hush {
 
         ImageTexture(const std::byte* data, size_t size);
 
+        ImageTexture(std::byte* buffer, const std::byte* data, size_t size);
+
         ~ImageTexture();
 
 		const int32_t& GetWidth() const noexcept;

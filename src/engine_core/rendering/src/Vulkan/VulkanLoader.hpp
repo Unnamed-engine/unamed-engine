@@ -53,6 +53,9 @@ namespace Hush {
 		static AllocatedImage LoadTexture(VulkanRenderer* engine, const ImageTexture& texture);
 
 	private:
+
+		static LoadAllTextures(const fastgltf::Asset& asset, VulkanRenderer* engine);
+
 		static VulkanMeshNode CreateMeshFromGltfMesh(const fastgltf::Mesh& mesh, const fastgltf::Asset& accessors, std::vector<uint32_t>& indicesRef, std::vector<Vertex>& verticesRef, VulkanRenderer* engine);
 
 		static Result<const uint8_t*, EError> GetDataFromBufferSource(const fastgltf::Buffer& buffer);

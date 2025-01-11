@@ -43,7 +43,7 @@ std::optional<std::vector<std::shared_ptr<Hush::VulkanMeshNode>>> Hush::VulkanLo
 	return meshes;
 }
 
-AllocatedImage Hush::VulkanLoader::LoadTexture(VulkanRenderer* engine, const	ImageTexture& texture)
+AllocatedImage Hush::VulkanLoader::LoadTexture(VulkanRenderer* engine, const ImageTexture& texture)
 {	
 	VkExtent3D extent{};
 	extent.width = texture.GetWidth();
@@ -53,6 +53,16 @@ AllocatedImage Hush::VulkanLoader::LoadTexture(VulkanRenderer* engine, const	Ima
 	constexpr VkFormat defaultImageFormat = VK_FORMAT_R8G8B8A8_UNORM;
 	
 	return engine->CreateImage(texture.GetImageData(), extent, defaultImageFormat, VK_IMAGE_USAGE_SAMPLED_BIT);
+}
+
+std::vector<AllocatedImage> Hush::VulkanLoader::LoadAllTextures(const fastgltf::Asset& asset, VulkanRenderer* engine)
+{
+	std::vector<AllocatedImage> loadedTexturesResult;
+	loadedTexturesResult.reserve(asset.images.size());
+	for (const fastgltf::Image& image : asset.images) {
+		
+	}
+	return loadedTexturesResult;
 }
 
 Hush::VulkanMeshNode Hush::VulkanLoader::CreateMeshFromGltfMesh(const fastgltf::Mesh& mesh, const fastgltf::Asset& asset, std::vector<uint32_t>& indicesRef, std::vector<Vertex>& verticesRef, VulkanRenderer* engine)

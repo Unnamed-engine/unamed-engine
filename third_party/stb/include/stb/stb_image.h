@@ -421,6 +421,11 @@ typedef struct
 //
 
 STBIDEF stbi_uc *stbi_load_from_memory   (stbi_uc           const *buffer, int len   , int *x, int *y, int *channels_in_file, int desired_channels);
+
+/// @brief Custom function uses a pre-allocated buffer to store all the data
+/// it grows its capacity if needed and the new size will come out in the outBufferSize variable
+STBIDEF stbi_uc* stbi_load_from_memory_pre_alloc(stbi_uc* outputBuffer, size_t* outBufferSize, stbi_uc const* buffer, int len, int* x, int* y, int* channels_in_file, int desired_channels);
+
 STBIDEF stbi_uc *stbi_load_from_callbacks(stbi_io_callbacks const *clbk  , void *user, int *x, int *y, int *channels_in_file, int desired_channels);
 
 #ifndef STBI_NO_STDIO
@@ -817,6 +822,9 @@ typedef struct
 
    stbi_uc *img_buffer, *img_buffer_end;
    stbi_uc *img_buffer_original, *img_buffer_original_end;
+   ///@brief Custom made pre allocated buffer
+   stbi_uc* pre_alloc_buffer;
+   size_t* pre_alloc_buffer_size;
 } stbi__context;
 
 
@@ -1432,6 +1440,18 @@ STBIDEF stbi_uc *stbi_load_from_memory(stbi_uc const *buffer, int len, int *x, i
    stbi__start_mem(&s,buffer,len);
    return stbi__load_and_postprocess_8bit(&s,x,y,comp,req_comp);
 }
+
+
+STBIDEF stbi_uc* stbi_load_from_memory_pre_alloc(stbi_uc* outputBuffer, size_t* outBufferSize, stbi_uc const* buffer, int len, int* x, int* y, int* channels_in_file, int desired_channels)
+{
+	stbi__context s;
+	stbi__start_mem(&s, buffer, len);
+    s.pre_alloc_buffer = outputBuffer;
+    s.pre_alloc_buffer_size = outBufferSize;
+	return stbi__load_and_postprocess_8bit(&s, x, y, channels_in_file, desired_channels);
+}
+
+
 
 STBIDEF stbi_uc *stbi_load_from_callbacks(stbi_io_callbacks const *clbk, void *user, int *x, int *y, int *comp, int req_comp)
 {
@@ -3919,7 +3939,20 @@ static stbi_uc *load_jpeg_image(stbi__jpeg *z, int *out_x, int *out_y, int *comp
       }
 
       // can't error after this so, this is safe
-      output = (stbi_uc *) stbi__malloc_mad3(n, z->s->img_x, z->s->img_y, 1);
+      if (z->s->pre_alloc_buffer == nullptr) {
+          output = (stbi_uc *) stbi__malloc_mad3(n, z->s->img_x, z->s->img_y, 1);
+      }
+      else {
+          //Use prealloc buffer instead of malloc
+          output = z->s->pre_alloc_buffer;
+          //Realloc if needed
+          size_t requiredSize = n * z->s->img_y * z->s->img_y + 1;
+          size_t* currentAllocSizeRef = z->s->pre_alloc_buffer_size;
+          if (*currentAllocSizeRef < requiredSize) {
+              output = (stbi_uc*)realloc(z->s->pre_alloc_buffer, requiredSize);
+              *currentAllocSizeRef = requiredSize;
+          }
+      }
       if (!output) { stbi__cleanup_jpeg(z); return stbi__errpuc("outofmem", "Out of memory"); }
 
       // now go ahead and resample
@@ -4028,9 +4061,10 @@ static stbi_uc *load_jpeg_image(stbi__jpeg *z, int *out_x, int *out_y, int *comp
 static void *stbi__jpeg_load(stbi__context *s, int *x, int *y, int *comp, int req_comp, stbi__result_info *ri)
 {
    unsigned char* result;
-   stbi__jpeg* j = (stbi__jpeg*) stbi__malloc(sizeof(stbi__jpeg));
+   constexpr size_t jpeg_size = sizeof(stbi__jpeg);
+   stbi__jpeg* j = (stbi__jpeg*) stbi__malloc(jpeg_size);
    if (!j) return stbi__errpuc("outofmem", "Out of memory");
-   memset(j, 0, sizeof(stbi__jpeg));
+   memset(j, 0, jpeg_size);
    STBI_NOTUSED(ri);
    j->s = s;
    stbi__setup_jpeg(j);
