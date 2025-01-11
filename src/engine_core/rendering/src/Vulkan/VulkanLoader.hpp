@@ -54,16 +54,19 @@ namespace Hush {
 
 	private:
 
-		static LoadAllTextures(const fastgltf::Asset& asset, VulkanRenderer* engine);
+		static std::vector<AllocatedImage> LoadAllTextures(const fastgltf::Asset& asset, VulkanRenderer* engine);
 
 		static VulkanMeshNode CreateMeshFromGltfMesh(const fastgltf::Mesh& mesh, const fastgltf::Asset& accessors, std::vector<uint32_t>& indicesRef, std::vector<Vertex>& verticesRef, VulkanRenderer* engine);
 
 		static Result<const uint8_t*, EError> GetDataFromBufferSource(const fastgltf::Buffer& buffer);
 		
-		static std::shared_ptr<VkMaterialInstance> GenerateMaterial(size_t materialIdx, const fastgltf::Asset& asset, VulkanRenderer* engine, VulkanAllocatedBuffer* sceneMaterialBuffer, DescriptorAllocatorGrowable& allocatorPool);
+		static std::shared_ptr<VkMaterialInstance> GenerateMaterial(size_t materialIdx, const fastgltf::Asset& asset, VulkanRenderer* engine, VulkanAllocatedBuffer* sceneMaterialBuffer, DescriptorAllocatorGrowable& allocatorPool, const std::vector<AllocatedImage>& loadedTextures);
 
 		static std::shared_ptr<ImageTexture> GetTexturePropertiesFromMaterial(const fastgltf::Asset& asset, const fastgltf::Material& material);
-		static std::shared_ptr<ImageTexture> TextureFromImageDataSource(const fastgltf::Asset& asset, const fastgltf::Image& image);
+		
+		static std::optional<AllocatedImage> LoadedTextureFromMaterial(const fastgltf::Asset& asset, const fastgltf::Material& material, const std::vector<AllocatedImage>& loadedTextures);
+		
+		static std::shared_ptr<ImageTexture> TextureFromImageDataSource(const fastgltf::Asset& asset, const fastgltf::Image& image, std::byte* preAllocBuffer = nullptr);
 
 		template<class BufferType>
 		static std::vector<BufferType> FindAttributeByName(const fastgltf::Primitive& primitive, const fastgltf::Asset& asset, const std::string_view& attributeName);

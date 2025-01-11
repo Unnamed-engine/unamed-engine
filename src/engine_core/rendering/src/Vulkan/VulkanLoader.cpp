@@ -59,8 +59,11 @@ std::vector<AllocatedImage> Hush::VulkanLoader::LoadAllTextures(const fastgltf::
 {
 	std::vector<AllocatedImage> loadedTexturesResult;
 	loadedTexturesResult.reserve(asset.images.size());
+	std::byte* preAllocatedBuffer = new std::byte[4096 *  1024]; //4Mb of prealloc data
 	for (const fastgltf::Image& image : asset.images) {
-		
+		std::shared_ptr<ImageTexture> texture = TextureFromImageDataSource(asset, image, preAllocatedBuffer);
+		AllocatedImage loadedImage = LoadTexture(engine, *texture.get());
+		loadedTexturesResult.emplace_back(loadedImage);
 	}
 	return loadedTexturesResult;
 }
@@ -93,6 +96,7 @@ Hush::VulkanMeshNode Hush::VulkanLoader::CreateMeshFromGltfMesh(const fastgltf::
 	
 	meshNode.m_descriptorPool.Init(volkGetLoadedDevice(), static_cast<uint32_t>(asset.materials.size()), sizes);
 
+	std::vector<AllocatedImage> loadedTextures = LoadAllTextures(asset, engine);
 	std::vector<std::shared_ptr<VkMaterialInstance>> loadedMaterials;
 
 	for (const fastgltf::Primitive& primitive : mesh.primitives)
@@ -140,7 +144,7 @@ Hush::VulkanMeshNode Hush::VulkanLoader::CreateMeshFromGltfMesh(const fastgltf::
 
 		if (primitive.materialIndex.has_value()) {
 			size_t materialIdx = primitive.materialIndex.value();
-			std::shared_ptr<VkMaterialInstance> materialInstance = GenerateMaterial(materialIdx, asset, engine, &materialDataBuffer, meshNode.m_descriptorPool);
+			std::shared_ptr<VkMaterialInstance> materialInstance = GenerateMaterial(materialIdx, asset, engine, &materialDataBuffer, meshNode.m_descriptorPool, loadedTextures);
 			surfaceToAdd.material = materialInstance;
 			loadedMaterials.emplace_back(materialInstance);
 		}
@@ -192,11 +196,9 @@ Hush::Result<const uint8_t*, Hush::VulkanLoader::EError> Hush::VulkanLoader::Get
 	return EError::InvalidMeshFile;
 }
 
-std::shared_ptr<Hush::VkMaterialInstance> Hush::VulkanLoader::GenerateMaterial(size_t materialIdx, const fastgltf::Asset& asset, VulkanRenderer* engine, VulkanAllocatedBuffer* sceneMaterialBuffer, DescriptorAllocatorGrowable& allocatorPool)
+std::shared_ptr<Hush::VkMaterialInstance> Hush::VulkanLoader::GenerateMaterial(size_t materialIdx, const fastgltf::Asset& asset, VulkanRenderer* engine, VulkanAllocatedBuffer* sceneMaterialBuffer, DescriptorAllocatorGrowable& allocatorPool, const std::vector<AllocatedImage>& loadedTextures)
 {
 	const fastgltf::Material& material = asset.materials.at(materialIdx);
-	std::shared_ptr<ImageTexture> textureToUse = GetTexturePropertiesFromMaterial(asset, material);
-	//std::shared_ptr<ImageTexture> textureToUse = nullptr;
 
 	GLTFMetallicRoughness::MaterialConstants constants;
 	HUSH_STATIC_ASSERT(
@@ -220,8 +222,8 @@ std::shared_ptr<Hush::VkMaterialInstance> Hush::VulkanLoader::GenerateMaterial(s
 
 	GLTFMetallicRoughness::MaterialResources materialResources;
 	// default the material textures
-
-	materialResources.colorImage = textureToUse != nullptr ? LoadTexture(engine, *textureToUse.get()) : engine->GetDefaultWhiteImage();
+	std::optional<AllocatedImage> loadedTextureToUse = LoadedTextureFromMaterial(asset, material, loadedTextures);
+	materialResources.colorImage = loadedTextureToUse.has_value() ? loadedTextureToUse.value() : engine->GetDefaultWhiteImage();
 	materialResources.colorSampler = engine->GetDefaultSamplerLinear();
 	materialResources.metalRoughImage = engine->GetDefaultWhiteImage();
 	materialResources.metalRoughSampler = engine->GetDefaultSamplerLinear();
@@ -247,11 +249,25 @@ std::shared_ptr<Hush::ImageTexture> Hush::VulkanLoader::GetTexturePropertiesFrom
 	return TextureFromImageDataSource(asset, image);
 }
 
-std::shared_ptr<Hush::ImageTexture> Hush::VulkanLoader::TextureFromImageDataSource(const fastgltf::Asset& asset, const fastgltf::Image& image)
+
+std::optional<AllocatedImage> Hush::VulkanLoader::LoadedTextureFromMaterial(const fastgltf::Asset& asset, const fastgltf::Material& material, const std::vector<AllocatedImage>& loadedTextures)
+{
+	if (!material.pbrData.baseColorTexture.has_value()) {
+		return std::nullopt;
+	}
+	size_t textureDataIdx = material.pbrData.baseColorTexture->textureIndex;
+	const fastgltf::Texture& fastgltfTexture = asset.textures.at(textureDataIdx);
+	if (!fastgltfTexture.imageIndex.has_value()) {
+		return std::nullopt;
+	}
+	return loadedTextures.at(fastgltfTexture.imageIndex.value());
+}
+
+std::shared_ptr<Hush::ImageTexture> Hush::VulkanLoader::TextureFromImageDataSource(const fastgltf::Asset& asset, const fastgltf::Image& image, std::byte* preAllocBuffer)
 {
 	const fastgltf::sources::Vector* vectorData = std::get_if<fastgltf::sources::Vector>(&image.data);
 	if (vectorData != nullptr) {
-		return std::make_shared<ImageTexture>(reinterpret_cast<const std::byte*>(vectorData->bytes.data()), vectorData->bytes.size());
+		return std::make_shared<ImageTexture>(preAllocBuffer, reinterpret_cast<const std::byte*>(vectorData->bytes.data()), vectorData->bytes.size());
 	}
 	const fastgltf::sources::URI* uriData = std::get_if<fastgltf::sources::URI>(&image.data);
 	const fastgltf::sources::BufferView* bufferViewData = std::get_if<fastgltf::sources::BufferView>(&image.data);
@@ -267,7 +283,7 @@ std::shared_ptr<Hush::ImageTexture> Hush::VulkanLoader::TextureFromImageDataSour
 			return nullptr;
 		}
 
-		return std::make_shared<ImageTexture>(reinterpret_cast<const std::byte*>(vectorData->bytes.data() + bufferView.byteOffset), bufferView.byteLength);
+		return std::make_shared<ImageTexture>(preAllocBuffer, reinterpret_cast<const std::byte*>(vectorData->bytes.data() + bufferView.byteOffset), bufferView.byteLength);
 	}
 
 	// TODO: support for file byte offset
