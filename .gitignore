@@ -11,6 +11,7 @@ cmake_install.cmake
 install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
+*Test*.cmake
 _deps
 #VS for SLN and .NET files
 ## Ignore Visual Studio temporary files, build results, and
