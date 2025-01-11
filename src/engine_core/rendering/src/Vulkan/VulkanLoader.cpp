@@ -186,10 +186,7 @@ std::shared_ptr<Hush::VkMaterialInstance> Hush::VulkanLoader::GenerateMaterial(s
 {
 	const fastgltf::Material& material = asset.materials.at(materialIdx);
 	std::shared_ptr<ImageTexture> textureToUse = GetTexturePropertiesFromMaterial(asset, material);
-	if (textureToUse == nullptr) {
-		//Default material without texture will be created, but this is temporary, let's change it
-		return nullptr; 
-	}
+	//std::shared_ptr<ImageTexture> textureToUse = nullptr;
 
 	GLTFMetallicRoughness::MaterialConstants constants;
 	HUSH_STATIC_ASSERT(
@@ -214,7 +211,7 @@ std::shared_ptr<Hush::VkMaterialInstance> Hush::VulkanLoader::GenerateMaterial(s
 	GLTFMetallicRoughness::MaterialResources materialResources;
 	// default the material textures
 
-	materialResources.colorImage = LoadTexture(engine, *textureToUse.get());
+	materialResources.colorImage = textureToUse != nullptr ? LoadTexture(engine, *textureToUse.get()) : engine->GetDefaultWhiteImage();
 	materialResources.colorSampler = engine->GetDefaultSamplerLinear();
 	materialResources.metalRoughImage = engine->GetDefaultWhiteImage();
 	materialResources.metalRoughSampler = engine->GetDefaultSamplerLinear();
