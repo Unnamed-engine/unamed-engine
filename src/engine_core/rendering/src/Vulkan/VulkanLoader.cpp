@@ -59,9 +59,8 @@ std::vector<AllocatedImage> Hush::VulkanLoader::LoadAllTextures(const fastgltf::
 {
 	std::vector<AllocatedImage> loadedTexturesResult;
 	loadedTexturesResult.reserve(asset.images.size());
-	std::byte* preAllocatedBuffer = new std::byte[4096 *  1024]; //4Mb of prealloc data
 	for (const fastgltf::Image& image : asset.images) {
-		std::shared_ptr<ImageTexture> texture = TextureFromImageDataSource(asset, image, preAllocatedBuffer);
+		std::shared_ptr<ImageTexture> texture = TextureFromImageDataSource(asset, image);
 		AllocatedImage loadedImage = LoadTexture(engine, *texture.get());
 		loadedTexturesResult.emplace_back(loadedImage);
 	}
@@ -263,11 +262,11 @@ std::optional<AllocatedImage> Hush::VulkanLoader::LoadedTextureFromMaterial(cons
 	return loadedTextures.at(fastgltfTexture.imageIndex.value());
 }
 
-std::shared_ptr<Hush::ImageTexture> Hush::VulkanLoader::TextureFromImageDataSource(const fastgltf::Asset& asset, const fastgltf::Image& image, std::byte* preAllocBuffer)
+std::shared_ptr<Hush::ImageTexture> Hush::VulkanLoader::TextureFromImageDataSource(const fastgltf::Asset& asset, const fastgltf::Image& image)
 {
 	const fastgltf::sources::Vector* vectorData = std::get_if<fastgltf::sources::Vector>(&image.data);
 	if (vectorData != nullptr) {
-		return std::make_shared<ImageTexture>(preAllocBuffer, reinterpret_cast<const std::byte*>(vectorData->bytes.data()), vectorData->bytes.size());
+		return std::make_shared<ImageTexture>(reinterpret_cast<const std::byte*>(vectorData->bytes.data()), vectorData->bytes.size());
 	}
 	const fastgltf::sources::URI* uriData = std::get_if<fastgltf::sources::URI>(&image.data);
 	const fastgltf::sources::BufferView* bufferViewData = std::get_if<fastgltf::sources::BufferView>(&image.data);
@@ -283,7 +282,7 @@ std::shared_ptr<Hush::ImageTexture> Hush::VulkanLoader::TextureFromImageDataSour
 			return nullptr;
 		}
 
-		return std::make_shared<ImageTexture>(preAllocBuffer, reinterpret_cast<const std::byte*>(vectorData->bytes.data() + bufferView.byteOffset), bufferView.byteLength);
+		return std::make_shared<ImageTexture>(reinterpret_cast<const std::byte*>(vectorData->bytes.data() + bufferView.byteOffset), bufferView.byteLength);
 	}
 
 	// TODO: support for file byte offset
