@@ -29,7 +29,7 @@ namespace Hush::Threading
         class WorkerQueue
         {
             /// The size of the worker queue. This is fixed.
-            constexpr static std::size_t WORKER_QUEUE_SIZE = 256;
+            constexpr static std::size_t WORKER_QUEUE_SIZE = 1024;
 
         public:
             /// Constructs a new worker queue.
@@ -60,6 +60,10 @@ namespace Hush::Threading
             /// @return The number of stolen tasks.
             [[nodiscard]]
             std::size_t TakeFromGlobalQueue();
+
+            /// Steals a task from another thread.
+            /// @return Steals a task from another thread.
+            TaskOperation * StealFromOtherThread(std::uint32_t threadNumber);
 
         private:
             /// Reference to the thread pool, it is used to push tasks to the global queue in case the worker queue is
@@ -145,6 +149,8 @@ namespace Hush::Threading
             void Notify();
 
         private:
+            friend class ThreadPool;
+
             /// The main function of the worker thread.
             /// @param stopToken Stop token for the worker thread.
             void ThreadFunction(std::stop_token stopToken);
@@ -277,6 +283,11 @@ namespace Hush::Threading
         }
 
     private:
+        /// Steals a task from another thread.
+        /// @param threadNumber The thread number of the current thread.
+        /// @return Steals a task from another thread.
+        TaskOperation * StealFromOtherThread(std::uint32_t threadNumber);
+
         /// Steals a task from the global queue.
         /// @return A task from the global queue.
         TaskOperation *StealFromGlobalQueue();
@@ -286,6 +297,10 @@ namespace Hush::Threading
         /// @return The number of tasks that were stolen.
         std::size_t StealFromGlobalQueue(std::span<TaskOperation *> tasks);
 
+        /// Wraps a task into a job.
+        /// @param threadPool Reference to the thread pool.
+        /// @param function Function to wrap.
+        /// @return Job that wraps the function.
         static Job WrapTask(ThreadPool &threadPool, Task<void> function);
 
         /// Notifies the worker threads.

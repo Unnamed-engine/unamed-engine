@@ -10,6 +10,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <fstream>
 #include <random>
+#include <set>
 
 using ThreadPool = Hush::Threading::ThreadPool;
 template <typename T>
@@ -91,9 +92,7 @@ TEST_CASE("ScheduleFunction")
     SECTION("ScheduleFunction")
     {
         // Arrange
-        auto threadFunction = []() {
-            (void)1;
-        };
+        auto threadFunction = []() { (void)1; };
 
         // Act
         auto task = threadPool.ScheduleFunction(threadFunction);
@@ -110,9 +109,7 @@ TEST_CASE("ScheduleFunction")
         std::uint32_t a = 10;
         std::uint32_t b = 5;
 
-        auto threadFunction = [&] {
-            result = a + b;
-        };
+        auto threadFunction = [&] { result = a + b; };
         // Act
         auto task = threadPool.ScheduleFunction(threadFunction);
         Hush::Threading::Wait(task);
@@ -126,9 +123,7 @@ TEST_CASE("ScheduleFunction")
     {
         // Arrange
         std::uint32_t result = 0;
-        auto threadFunction = [&result](std::uint32_t a, std::uint32_t b) {
-            result = a + b;
-        };
+        auto threadFunction = [&result](std::uint32_t a, std::uint32_t b) { result = a + b; };
         const std::uint32_t a = 10;
         const std::uint32_t b = 5;
 
@@ -139,5 +134,42 @@ TEST_CASE("ScheduleFunction")
         // Assert
         REQUIRE(task.GetCoroutine().done());
         REQUIRE(result == 15);
+    }
+}
+
+TEST_CASE("Multithread")
+{
+    ThreadPool threadPool(2);
+    threadPool.Start();
+    SECTION("Multithread")
+    {
+        // Arrange
+        std::set<std::thread::id> threadIds;
+        std::mutex mutex;
+        std::vector<Job> tasks;
+        constexpr std::uint32_t numTasks = 500;
+        auto threadFunction = [&threadIds, &mutex]() -> Task<void> {
+            {
+                std::lock_guard lock(mutex);
+                threadIds.insert(std::this_thread::get_id());
+            }
+
+            co_return;
+        };
+
+        // Act
+        for (std::uint32_t i = 0; i < numTasks; ++i)
+        {
+            tasks.push_back(threadPool.ScheduleTask(threadFunction()));
+        }
+
+        // Wait until all tasks are done
+        for (auto &task : tasks)
+        {
+            Hush::Threading::Wait(task);
+        }
+
+        // Assert
+        // REQUIRE(threadIds.size() == 4);
     }
 }
