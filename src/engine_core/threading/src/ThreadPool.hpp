@@ -15,6 +15,7 @@
 #include <mutex>
 #include <span>
 #include <thread>
+#include <deque>
 #include <vector>
 
 namespace Hush::Threading
@@ -84,7 +85,7 @@ namespace Hush::Threading
         {
         public:
             // Default number of tasks to steal from the global queue.
-            constexpr static std::uint32_t DEFAULT_STEAL_COUNT = 10;
+            constexpr static std::uint32_t DEFAULT_STEAL_COUNT = 64;
 
             /// Options for the worker thread.
             struct ThreadOptions
@@ -314,7 +315,7 @@ namespace Hush::Threading
         friend class TaskOperation;
 
         std::vector<std::unique_ptr<impl::WorkerThread>> m_workerThreads;
-        std::vector<TaskOperation *> m_globalQueue;
+        std::deque<TaskOperation *> m_globalQueue;
         std::mutex m_globalQueueMutex;
     };
 

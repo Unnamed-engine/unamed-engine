@@ -241,10 +241,37 @@ void Hush::Threading::impl::WorkerThread::ThreadFunction(std::stop_token stopTok
         if (task == nullptr)
         {
             // Steal a task
-            task = m_workerQueue->StealFromOtherThread(m_threadIndex);
+            /*
+             * TODO: fix this, stealing causes some problems due to atomic operations
+             * it might be that the wait-free algorithm is not correct (which is likely the case)
+             * However, I would suggest looking at other implementation or using an existing library.
+             * The use case is as follows:
+             * 1. There must be a global queue, it does not need to be lock-free, but it should be thread-safe.
+             *    This queue is used to store tasks pushed by any thread that **does not** belong to the thread pool.
+             * 2. Each thread has its own queue, this queue should be lock-free (ideally wait-free) and should be used
+             *    to store tasks that either were taken from the global queue, pushed by the thread itself, or stolen from
+             *    other threads. It is possible that we implement two queues, one that is not thread-safe and is used to
+             *    store tasks that cannot be stolen by other threads, and another that is thread-safe and is used to store
+             *    tasks that can be stolen by other threads, but it is an implementation detail that we should discuss.
+             * 3. The stealing algorithm **should** be wait-free, it should take a task from the top of the queue
+             *    of any random thread, if the queue is empty, it should try to steal from another thread, and so on.
+             * 4. When a thread is Idle, it should be awaken by another thread that has a task to execute. This should be
+             *    as follows: the main thread should check if all threads are idle, if so, it should wake up one of the
+             *    idle threads. The idle thread will take a batch of tasks from the global queue and push them to its own
+             *    queue. If the amount of tasks to run is more than a given heuristic, the thread should wake up another
+             *    idle thread, and so on.
+             * 5. When an idle thread is awaken, it should check if there are tasks in the global queue, if so, it should
+             *    take a batch of tasks and push them to its own queue. Repeat number 4.
+             * 6. If an awaken thread could not find any tasks in the global queue, it should steal from another thread (see 3).
+             *
+             * I think that we should look into existing implementations of lock-free executor services,
+             * for instance, the go runtime has a lock-free scheduler, we could look into that. Also Tokio.rs
+             * has a lock-free scheduler, and they provide a blog post explaining how it works.
+             */
+            // task = m_workerQueue->StealFromOtherThread(m_threadIndex);
         }
 
-        // Unfortunatelly, we need to check if we are stopping after each step as it might be that the thread was stopped
+        // Unfortunately, we need to check if we are stopping after each step as it might be that the thread was stopped
         if (m_state.load(std::memory_order_acquire) == EWorkerThreadState::Stopping)
         {
             break;
@@ -302,9 +329,9 @@ void Hush::Threading::impl::WorkerThread::ThreadFunction(std::stop_token stopTok
 void Hush::Threading::TaskOperation::await_suspend(std::coroutine_handle<Job::promise_type> awaitingCoroutine) noexcept
 {
     m_awaitingCoroutine = awaitingCoroutine;
-    m_executor.PushToGlobalQueue(this);
-
     awaitingCoroutine.promise().SetFlag(m_done);
+
+    m_executor.PushToGlobalQueue(this);
 
     m_executor.NotifyWorkerThreads();
 }
@@ -475,8 +502,8 @@ std::size_t Hush::Threading::ThreadPool::StealFromGlobalQueue(std::span<TaskOper
             break;
         }
 
-        tasks[i] = m_globalQueue.back();
-        m_globalQueue.pop_back();
+        tasks[i] = m_globalQueue.front();
+        m_globalQueue.pop_front();
         ++stolenTasks;
     }
 

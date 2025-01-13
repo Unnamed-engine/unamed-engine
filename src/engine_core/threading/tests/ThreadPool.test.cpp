@@ -139,7 +139,7 @@ TEST_CASE("ScheduleFunction")
 
 TEST_CASE("Multithread")
 {
-    ThreadPool threadPool(2);
+    ThreadPool threadPool(3);
     threadPool.Start();
     SECTION("Multithread")
     {
@@ -147,7 +147,7 @@ TEST_CASE("Multithread")
         std::set<std::thread::id> threadIds;
         std::mutex mutex;
         std::vector<Job> tasks;
-        constexpr std::uint32_t numTasks = 500;
+        constexpr std::uint32_t numTasks = 10000;
         auto threadFunction = [&threadIds, &mutex]() -> Task<void> {
             {
                 std::lock_guard lock(mutex);
@@ -170,6 +170,6 @@ TEST_CASE("Multithread")
         }
 
         // Assert
-        // REQUIRE(threadIds.size() == 4);
+        REQUIRE(threadIds.size() == threadPool.GetNumThreads());
     }
 }
