@@ -12,12 +12,11 @@
 #include "VulkanAllocatedBuffer.hpp"
 #include "vk_mem_alloc.hpp"
 
-std::optional<std::vector<std::shared_ptr<Hush::VulkanMeshNode>>> Hush::VulkanLoader::LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath)
+Hush::Result<std::vector<std::shared_ptr<Hush::VulkanMeshNode>>, Hush::VulkanLoader::EError> Hush::VulkanLoader::LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath)
 {
 	fastgltf::GltfDataBuffer data;
 	if (!std::filesystem::exists(filePath)) {
-		LogFormat(ELogLevel::Error, "Failed to load mesh at {} file does not exist", filePath.string());
-		return std::nullopt;
+		return EError::FileNotFound;
 	}
 	data.loadFromFile(filePath);
 

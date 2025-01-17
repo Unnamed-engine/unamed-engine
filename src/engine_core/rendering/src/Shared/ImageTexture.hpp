@@ -20,10 +20,6 @@ namespace Hush {
 
         ImageTexture(const std::byte* data, size_t size);
 
-        ~ImageTexture();
-
-        void Dispose();
-
 		const int32_t& GetWidth() const noexcept;
 
 		const int32_t& GetHeight() const noexcept;
@@ -33,6 +29,6 @@ namespace Hush {
     private:
 		int32_t m_width;
 		int32_t m_height;
-        std::byte* m_data;
+        std::unique_ptr<std::byte> m_data;
     };
 }

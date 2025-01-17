@@ -43,12 +43,13 @@ namespace Hush {
 
 		enum class EError {
 			None = 0,
+			FileNotFound,
 			InvalidMeshFile,
 			FormatNotSupported
 		};
 
 	public:
-		static std::optional<std::vector<std::shared_ptr<VulkanMeshNode>>> LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath);
+		static Result<std::vector<std::shared_ptr<VulkanMeshNode>>, EError> LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath);
 
 		static AllocatedImage LoadTexture(VulkanRenderer* engine, const ImageTexture& texture);
 
