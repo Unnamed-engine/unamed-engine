@@ -4,14 +4,14 @@
 
 
 # Configuration directories and files
-SourceDirectory: Y:/Programming/C++/Hush-Engine
-BuildDirectory: Y:/Programming/C++/Hush-Engine
+SourceDirectory: C:/Users/nefes/Personal/Hush-Engine
+BuildDirectory: C:/Users/nefes/Personal/Hush-Engine
 
 # Where to place the cost data store
 CostDataFile: 
 
 # Site is something like machine.domain, i.e. pragmatic.crd
-Site: DESKTOP-PCRP4GF
+Site: NefBattleRoad
 
 # Build name is osname-revision-compiler, i.e. Linux-2.4.2-2smp-c++
 BuildName: Win32-MSBuild
@@ -27,7 +27,7 @@ SubmitInactivityTimeout:
 NightlyStartTime: 00:00:00 EDT
 
 # Commands for the build/test/submit cycle
-ConfigureCommand: "C:/Program Files/CMake/bin/cmake.exe" "Y:/Programming/C++/Hush-Engine"
+ConfigureCommand: "C:/Program Files/CMake/bin/cmake.exe" "C:/Users/nefes/Personal/Hush-Engine"
 MakeCommand: "C:\Program Files\CMake\bin\cmake.exe" --build . --config "${CTEST_CONFIGURATION_TYPE}"
 DefaultCTestConfigurationType: Release
 
@@ -45,7 +45,7 @@ SVNOptions:
 SVNUpdateOptions: 
 
 # Git options
-GITCommand: X:/Github/Git/cmd/git.exe
+GITCommand: C:/Program Files/Git/cmd/git.exe
 GITInitSubmodules: 
 GITUpdateOptions: 
 GITUpdateCustom: 
@@ -58,7 +58,7 @@ P4UpdateOptions:
 P4UpdateCustom: 
 
 # Generic update command
-UpdateCommand: X:/Github/Git/cmd/git.exe
+UpdateCommand: C:/Program Files/Git/cmd/git.exe
 UpdateOptions: 
 UpdateType: git
 
@@ -94,6 +94,9 @@ TimeOut: 1500
 # During parallel testing CTest will not start a new test if doing
 # so would cause the system load to exceed this value.
 TestLoad: 
+
+TLSVerify: 
+TLSVersion: 
 
 UseLaunchers: 0
 CurlOptions: 
