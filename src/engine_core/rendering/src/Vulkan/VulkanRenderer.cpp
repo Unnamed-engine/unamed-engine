@@ -405,14 +405,14 @@ void Hush::VulkanRenderer::InitRendering()
 
     this->InitializeCommands();
 
-    this->InitRenderables();
-
     this->InitDescriptors();
 
     this->InitPipelines();
 
-    // Must be called after the pipelines and descriptors are initialized
+    // Last two methods must be called after the pipelines and descriptors are initialized
     this->InitDefaultData();
+
+    this->InitRenderables();
 
     this->m_editorCamera = EditorCamera(70.0f, static_cast<float>(this->m_width), static_cast<float>(this->m_height), 0.1f, 10000.f);
 
@@ -536,6 +536,36 @@ FrameData &Hush::VulkanRenderer::GetCurrentFrame() noexcept
 FrameData &Hush::VulkanRenderer::GetLastFrame() noexcept
 {
     return this->m_frames.at((this->m_frameNumber - 1) % FRAME_OVERLAP);
+}
+
+VkSampler Hush::VulkanRenderer::GetDefaultSamplerLinear() noexcept
+{
+    return this->m_defaultSamplerLinear;
+}
+
+VkSampler Hush::VulkanRenderer::GetDefaultSamplerNearest() noexcept
+{
+    return this->m_defaultSamplerNearest;
+}
+
+AllocatedImage Hush::VulkanRenderer::GetDefaultWhiteImage() const noexcept
+{
+    return this->m_whiteImage;
+}
+
+Hush::GLTFMetallicRoughness& Hush::VulkanRenderer::GetMetalRoughMaterial() noexcept
+{
+    return this->m_metalRoughMaterial;
+}
+
+DescriptorAllocatorGrowable& Hush::VulkanRenderer::GlobalDescriptorAllocator() noexcept
+{
+    return this->m_globalDescriptorAllocator;
+}
+
+VmaAllocator Hush::VulkanRenderer::GetVmaAllocator() noexcept
+{
+    return this->m_allocator;
 }
 
 void Hush::VulkanRenderer::Configure(vkb::Instance vkbInstance)
@@ -709,8 +739,12 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\house.glb";
-    this->m_testMeshes = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
+    std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\sponza.glb";
+    std::vector<std::shared_ptr<VulkanMeshNode>> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
+    for (auto& node : nodeVector)
+    {
+        this->m_loadedNodes[node->GetMesh().name] = node;
+    }
 }
 
 void Hush::VulkanRenderer::TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout,
@@ -1042,54 +1076,6 @@ void Hush::VulkanRenderer::InitDefaultData() noexcept
 		DestroyImage(m_blackImage);
 		DestroyImage(m_errorCheckerboardImage);
 	});
-
-	GLTFMetallicRoughness::MaterialResources materialResources;
-	//default the material textures
-	materialResources.colorImage = this->m_whiteImage;
-	materialResources.colorSampler = this->m_defaultSamplerLinear;
-	materialResources.metalRoughImage = this->m_whiteImage;
-	materialResources.metalRoughSampler = this->m_defaultSamplerLinear;
-
-	//set the uniform buffer for the material data
-	VulkanAllocatedBuffer materialConstants = VulkanAllocatedBuffer(
-        sizeof(GLTFMetallicRoughness::MaterialConstants), 
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
-        VMA_MEMORY_USAGE_CPU_TO_GPU, 
-        this->m_allocator
-    );
-
-	//write the buffer
-	auto* sceneUniformData = static_cast<GLTFMetallicRoughness::MaterialConstants*>(materialConstants.GetAllocation()->GetMappedData());
-	sceneUniformData->colorFactors = glm::vec4{ 1,1,1,1 };
-	sceneUniformData->metal_rough_factors = glm::vec4{ 1,0.5,0,0 };
-
-    this->m_mainDeletionQueue.PushFunction([&] {
-        materialConstants.Dispose(m_allocator);
-    });
-
-	materialResources.dataBuffer = materialConstants.GetBuffer();
-	materialResources.dataBufferOffset = 0;
-
-	this->m_defaultData = this->m_metalRoughMaterial.WriteMaterial(
-        this->m_device,
-        EMaterialPass::MainColor, 
-        materialResources, 
-        this->m_globalDescriptorAllocator
-    );
-
-	for (std::shared_ptr<MeshAsset>& m : this->m_testMeshes) {
-		std::shared_ptr<VulkanMeshNode> newNode = std::make_shared<VulkanMeshNode>(m);
-
-		newNode->SetLocalTransform(glm::mat4{ 1.f });
-		newNode->SetWorldTransform(glm::mat4{ 1.f });
-
-		for (GeoSurface& s : newNode->GetMesh().surfaces) {
-			s.material = std::make_shared<VkMaterialInstance>(this->m_defaultData);
-		}
-
-		this->m_loadedNodes[m->name] = std::move(newNode);
-	}
-
 }
 
 void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
@@ -1305,7 +1291,7 @@ void Hush::VulkanRenderer::DestroyImage(const AllocatedImage& img)
 	vmaDestroyImage(this->m_allocator, img.image, img.allocation);
 }
 
-AllocatedImage Hush::VulkanRenderer::CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped /*= false*/)
+AllocatedImage Hush::VulkanRenderer::CreateImage(const void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped /*= false*/)
 {
     
 	uint32_t dataSize = size.depth * size.width * size.height * 4;

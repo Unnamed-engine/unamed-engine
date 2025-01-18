@@ -19,7 +19,7 @@ void Hush::EditorCamera::OnUpdate(float delta)
 	glm::vec3 forward = -glm::vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
 
 	glm::vec3 cameraDir(0.f);
-	float speed = 100.0f; // Adjust speed as necessary
+	float speed = 1000.0f; // Adjust speed as necessary
 
 	if (InputManager::IsKeyDown(EKeyCode::W)) {
 		cameraDir += forward;

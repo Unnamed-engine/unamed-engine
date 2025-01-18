@@ -82,6 +82,18 @@ namespace Hush
 
         /* CONSTANT GETTERS */
 
+		[[nodiscard]] VkSampler GetDefaultSamplerLinear() noexcept;
+
+		[[nodiscard]] VkSampler GetDefaultSamplerNearest() noexcept;
+
+        [[nodiscard]] AllocatedImage GetDefaultWhiteImage() const noexcept;
+
+        [[nodiscard]] GLTFMetallicRoughness& GetMetalRoughMaterial() noexcept;
+
+        [[nodiscard]] DescriptorAllocatorGrowable& GlobalDescriptorAllocator() noexcept;
+
+        [[nodiscard]] VmaAllocator GetVmaAllocator() noexcept;
+
         [[nodiscard]] VkInstance GetVulkanInstance() noexcept;
 
         [[nodiscard]] VkDevice GetVulkanDevice() noexcept;
@@ -101,6 +113,8 @@ namespace Hush
         [[nodiscard]] void* GetWindowContext() const noexcept override;
 
         GPUMeshBuffers UploadMesh(const std::vector<uint32_t>& indices, const std::vector<Vertex>& vertices);
+
+		AllocatedImage CreateImage(const void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 
     private:
         void Configure(vkb::Instance vkbInstance);
@@ -149,7 +163,6 @@ namespace Hush
 
 		AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 
-		AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 
         void DestroyImage(const AllocatedImage& img);
 

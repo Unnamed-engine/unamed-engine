@@ -10,6 +10,7 @@ add_library(HushRendering OBJECT
         src/Vulkan/VulkanLoader.cpp
         src/Vulkan/VkDescriptors.cpp
         src/Shared/Camera.cpp
+        src/Shared/ImageTexture.cpp
         src/Shared/EditorCamera.cpp
         src/ImGui/VulkanImGuiForwarder.cpp
 )
@@ -19,6 +20,7 @@ target_include_directories(HushRendering PUBLIC src)
 target_link_libraries(HushRendering PUBLIC
         SDL2::SDL2
         imgui
+        stb
         Vulkan::Vulkan
         vk-bootstrap::vk-bootstrap
         glm::glm

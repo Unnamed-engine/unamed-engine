@@ -21,7 +21,7 @@ namespace Hush {
 		struct MaterialConstants
 		{
 			glm::vec4 colorFactors;
-			glm::vec4 metal_rough_factors;
+			glm::vec4 metalRoughFactors;
 			// padding, we need it anyway for uniform buffers
 			glm::vec4 extra[14];
 		};
@@ -50,7 +50,7 @@ namespace Hush {
 			else {
 				matData.pipeline = &opaquePipeline;
 			}
-
+			//Not initialized material layout here from VkLoader
 			matData.materialSet = descriptorAllocator.Allocate(device, this->materialLayout);
 
 

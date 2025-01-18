@@ -16,6 +16,8 @@
 #include <fastgltf/types.hpp>
 #include <Result.hpp>
 #include "VkMaterialInstance.hpp"
+#include "Shared/ImageTexture.hpp"
+#include "VulkanMeshNode.hpp"
 
 namespace Hush {
 
@@ -34,25 +36,43 @@ namespace Hush {
 
 	//forward declaration
 	class VulkanRenderer;
+	class VulkanAllocatedBuffer;
 
 	class VulkanLoader {
-		
-		enum class Error {
-			None,
-			InvalidMeshFile
+
+		enum class EError {
+			None = 0,
+			FileNotFound,
+			InvalidMeshFile,
+			FormatNotSupported
 		};
 
 	public:
-		static std::optional<std::vector<std::shared_ptr<MeshAsset>>> LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath);
+		static Result<std::vector<std::shared_ptr<VulkanMeshNode>>, EError> LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath);
 
+		static AllocatedImage LoadTexture(VulkanRenderer* engine, const ImageTexture& texture);
 
 	private:
-		static MeshAsset CreateMeshAssetFromGltfMesh(const fastgltf::Mesh& mesh, const fastgltf::Asset& accessors, std::vector<uint32_t>& indicesRef, std::vector<Vertex>& verticesRef, VulkanRenderer* engine);
+
+		static std::vector<AllocatedImage> LoadAllTextures(const fastgltf::Asset& asset, VulkanRenderer* engine);
+
+		static VulkanMeshNode CreateMeshFromGltfMesh(const fastgltf::Mesh& mesh, const fastgltf::Asset& accessors, std::vector<uint32_t>& indicesRef, std::vector<Vertex>& verticesRef, VulkanRenderer* engine);
+
+		static Result<const uint8_t*, EError> GetDataFromBufferSource(const fastgltf::Buffer& buffer);
 		
-		static Result<const uint8_t*, Error> GetDataFromBufferSource(const fastgltf::Buffer& buffer);
+		static std::shared_ptr<VkMaterialInstance> GenerateMaterial(size_t materialIdx, const fastgltf::Asset& asset, VulkanRenderer* engine, VulkanAllocatedBuffer* sceneMaterialBuffer, DescriptorAllocatorGrowable& allocatorPool, const std::vector<AllocatedImage>& loadedTextures);
+
+		static std::shared_ptr<ImageTexture> GetTexturePropertiesFromMaterial(const fastgltf::Asset& asset, const fastgltf::Material& material);
 		
+		static std::optional<AllocatedImage> LoadedTextureFromMaterial(const fastgltf::Asset& asset, const fastgltf::Material& material, const std::vector<AllocatedImage>& loadedTextures);
+		
+		static std::shared_ptr<ImageTexture> TextureFromImageDataSource(const fastgltf::Asset& asset, const fastgltf::Image& image);
+
 		template<class BufferType>
 		static std::vector<BufferType> FindAttributeByName(const fastgltf::Primitive& primitive, const fastgltf::Asset& asset, const std::string_view& attributeName);
+	
+		static constexpr VkFilter ExtractFilter(const fastgltf::Filter& filter);
+		static constexpr VkSamplerMipmapMode ExtractMipMapMode(const fastgltf::Filter& filter);
 	};
 
 	template<class BufferType>
@@ -68,7 +88,7 @@ namespace Hush {
 		const fastgltf::Buffer& buffer = asset.buffers[accessorBufferView.bufferIndex];
 		result.reserve(foundAccessor.count);
 		// Calculate the pointer to the start of the position data by using buffer, buffer view, and accessor offsets.
-		Result<const uint8_t*, Error> bufferData = GetDataFromBufferSource(buffer);
+		Result<const uint8_t*, EError> bufferData = GetDataFromBufferSource(buffer);
 		
 		if (bufferData.has_error()) {
 			LogFormat(ELogLevel::Warn, "{} Error! Could not read the data variant for the buffer", magic_enum::enum_name(bufferData.error()));
