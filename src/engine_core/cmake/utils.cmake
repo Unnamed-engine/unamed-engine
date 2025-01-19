@@ -23,5 +23,5 @@ function(add_test_target)
     target_link_libraries(${TEST_TARGET_NAME} PRIVATE ${TEST_ENGINE_TARGET} HushLog Catch2::Catch2WithMain)
     set_all_warnings(${TEST_TARGET_NAME})
 
-    #catch_discover_tests(${TEST_TARGET_NAME})
+    catch_discover_tests(${TEST_TARGET_NAME})
 endfunction()
