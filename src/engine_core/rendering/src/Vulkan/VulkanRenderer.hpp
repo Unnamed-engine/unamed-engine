@@ -134,8 +134,6 @@ namespace Hush
 
         void CreateSyncObjects();
 
-        void DestroySwapChain();
-
         VkSubmitInfo2 SubmitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo,
             VkSemaphoreSubmitInfo* waitSemaphoreInfo);
 

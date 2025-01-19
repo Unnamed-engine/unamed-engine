@@ -16,6 +16,10 @@ namespace Hush {
 
 		void Destroy();
 
+		void Present(VkCommandBuffer cmd, uint32_t* swapchainImageIndex, bool* shouldResize);
+
+		uint32_t AcquireNextImage(VkSemaphore swapchainSemaphore, bool* shouldResize);
+
 		[[nodiscard]] const VkFormat& GetImageFormat() const noexcept;
 		
 		[[nodiscard]] const VkExtent2D& GetExtent() const noexcept;

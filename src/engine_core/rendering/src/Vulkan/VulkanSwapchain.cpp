@@ -109,6 +109,55 @@ void Hush::VulkanSwapchain::Destroy()
 	this->m_imageViews.clear();
 }
 
+void Hush::VulkanSwapchain::Present(VkCommandBuffer cmd, uint32_t* swapchainImageIndex, bool* shouldResize)
+{
+	FrameData& currentFrame = this->m_renderer->GetCurrentFrame();
+	VkCommandBufferSubmitInfo cmdinfo = VkUtilsFactory::CreateCommandBufferSubmitInfo(cmd);
+
+	VkSemaphoreSubmitInfo waitInfo = VkUtilsFactory::CreateSemaphoreSubmitInfo(
+		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, currentFrame.swapchainSemaphore);
+
+	VkSemaphoreSubmitInfo signalInfo =
+		VkUtilsFactory::CreateSemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, currentFrame.renderSemaphore);
+
+	VkSubmitInfo2 submit = VkUtilsFactory::SubmitInfo(&cmdinfo, &signalInfo, &waitInfo);
+
+	// submit command buffer to the queue and execute it.
+	//  _renderFence will now block until the graphic commands finish execution
+	HUSH_VK_ASSERT(vkQueueSubmit2(this->m_renderer->GetGraphicsQueue(), 1, &submit, currentFrame.renderFence), "Queue submit failed!");
+
+	// prepare present
+	//  this will put the image we just rendered to into the visible window.
+	//  we want to wait on the _renderSemaphore for that,
+	//  as its necessary that drawing commands have finished before the image is displayed to the user
+	VkPresentInfoKHR presentInfo = VkUtilsFactory::CreatePresentInfo();
+
+	VkSwapchainKHR rawSwapchain = this->m_swapchain;
+	presentInfo.pSwapchains = &rawSwapchain;
+	presentInfo.swapchainCount = 1;
+
+	presentInfo.pWaitSemaphores = &currentFrame.renderSemaphore;
+	presentInfo.waitSemaphoreCount = 1;
+
+	presentInfo.pImageIndices = swapchainImageIndex;
+
+	VkResult presentResult = vkQueuePresentKHR(this->m_renderer->GetGraphicsQueue(), &presentInfo);
+	*shouldResize = presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR;
+	if (*shouldResize) return;
+	HUSH_VK_ASSERT(presentResult, "Presenting failed!");
+}
+
+uint32_t Hush::VulkanSwapchain::AcquireNextImage(VkSemaphore swapchainSemaphore, bool* shouldResize)
+{
+	uint32_t imageIndex{};
+	// Request an image from the swapchain
+	VkResult rc = vkAcquireNextImageKHR(this->m_renderer->GetVulkanDevice(), this->m_swapchain, VK_OPERATION_TIMEOUT_NS,
+		swapchainSemaphore, nullptr, &imageIndex);
+	HUSH_VK_ASSERT(rc, "Failed to acquire next image from swapchain!");
+	*shouldResize = rc == VK_ERROR_OUT_OF_DATE_KHR || rc == VK_SUBOPTIMAL_KHR;
+	return imageIndex;
+}
+
 const VkFormat& Hush::VulkanSwapchain::GetImageFormat() const noexcept
 {
 	return this->m_swapchainImageFormat;

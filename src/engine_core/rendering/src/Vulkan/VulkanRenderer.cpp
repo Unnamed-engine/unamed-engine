@@ -210,49 +210,13 @@ void Hush::VulkanRenderer::Draw(float delta)
 
     // finalize the command buffer (we can no longer add commands, but it can now be executed)
     HUSH_VK_ASSERT(vkEndCommandBuffer(cmd), "End command buffer failed!");
-    //< imgui_draw
 
-    // prepare the submission to the queue.
-    // we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
-    // we will signal the _renderSemaphore, to signal that rendering has finished
+    this->m_swapchain.Present(cmd, &swapchainImageIndex, &this->m_resizeRequested);
 
-    VkCommandBufferSubmitInfo cmdinfo = VkUtilsFactory::CreateCommandBufferSubmitInfo(cmd);
-
-    VkSemaphoreSubmitInfo waitInfo = VkUtilsFactory::CreateSemaphoreSubmitInfo(
-        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, currentFrame.swapchainSemaphore);
-
-    VkSemaphoreSubmitInfo signalInfo =
-        VkUtilsFactory::CreateSemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, currentFrame.renderSemaphore);
-
-    VkSubmitInfo2 submit = VkUtilsFactory::SubmitInfo(&cmdinfo, &signalInfo, &waitInfo);
-
-    // submit command buffer to the queue and execute it.
-    //  _renderFence will now block until the graphic commands finish execution
-    HUSH_VK_ASSERT(vkQueueSubmit2(this->m_graphicsQueue, 1, &submit, currentFrame.renderFence), "Queue submit failed!");
-
-    // prepare present
-    //  this will put the image we just rendered to into the visible window.
-    //  we want to wait on the _renderSemaphore for that,
-    //  as its necessary that drawing commands have finished before the image is displayed to the user
-    VkPresentInfoKHR presentInfo = VkUtilsFactory::CreatePresentInfo();
-
-    VkSwapchainKHR rawSwapchain = this->m_swapchain.GetRawSwapchain();
-    presentInfo.pSwapchains = &rawSwapchain;
-    presentInfo.swapchainCount = 1;
-
-    presentInfo.pWaitSemaphores = &currentFrame.renderSemaphore;
-    presentInfo.waitSemaphoreCount = 1;
-
-    presentInfo.pImageIndices = &swapchainImageIndex;
-
-    VkResult presentResult = vkQueuePresentKHR(this->m_graphicsQueue, &presentInfo);
-
-    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR) {
-        this->m_resizeRequested = true;
+    if (this->m_resizeRequested) {
+        //Skip frame
         return;
     }
-
-    HUSH_VK_ASSERT(presentResult, "Presenting failed!");
 
     // increase the number of frames drawn
     this->m_frameNumber++;
@@ -642,7 +606,7 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    std::string structurePath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\sponza.glb";
+    std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\sponza.glb";
     std::vector<std::shared_ptr<VulkanMeshNode>> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
     for (auto& node : nodeVector)
     {
@@ -781,8 +745,8 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
     this->InitBackgroundPipelines();
     this->InitMeshPipeline();
 
-	constexpr std::string_view fragmentShaderPath = "C:/Users/nefes/Personal/Hush-Engine/res/mesh.frag.spv";
-	constexpr std::string_view vertexShaderPath = "C:/Users/nefes/Personal/Hush-Engine/res/mesh.vert.spv";
+	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.frag.spv";
+    constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.vert.spv";
     this->m_metalRoughMaterial.BuildPipelines(this, fragmentShaderPath, vertexShaderPath);
 }
 
@@ -796,7 +760,7 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
 
     // layout code
     VkShaderModule computeDrawShader = nullptr;
-    constexpr std::string_view shaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\gradient_color.comp.spv";
+    constexpr std::string_view shaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\gradient_color.comp.spv";
     if (!VulkanHelper::LoadShaderModule(shaderPath, this->m_device, &computeDrawShader))
     {
         LogError("Error when building the compute shader");
@@ -840,8 +804,8 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
 
 void Hush::VulkanRenderer::InitMeshPipeline() noexcept
 {
-	constexpr std::string_view fragmentShaderPath = "C:/Users/nefes/Personal/Hush-Engine/res/tex_image.frag.spv";
-	constexpr std::string_view vertexShaderPath = "C:/Users/nefes/Personal/Hush-Engine/res/colored_triangle_mesh.vert.spv";
+	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\tex_image.frag.spv";
+    constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\colored_triangle_mesh.vert.spv";
 
 	VkShaderModule triangleFragShader;
 	if (!VulkanHelper::LoadShaderModule(fragmentShaderPath, this->m_device, &triangleFragShader)) {
@@ -1109,13 +1073,10 @@ VkCommandBuffer Hush::VulkanRenderer::PrepareCommandBuffer(FrameData& currentFra
 	HUSH_VK_ASSERT(rc, "Fence wait failed!");
 
     // Request an image from the swapchain
-    rc = vkAcquireNextImageKHR(this->m_device, this->m_swapchain.GetRawSwapchain(), VK_OPERATION_TIMEOUT_NS,
-        currentFrame.swapchainSemaphore, nullptr, swapchainImageIndex);
-	
+    *swapchainImageIndex = this->m_swapchain.AcquireNextImage(currentFrame.swapchainSemaphore, &this->m_resizeRequested);
     //Handle resize request, pass this back to the caller to check
-    if (rc == VK_ERROR_OUT_OF_DATE_KHR || rc == VK_SUBOPTIMAL_KHR) { //Subotptimal will be thrown on different GPUs
-		//Resized
-		this->m_resizeRequested = true;
+    if (this->m_resizeRequested) {
+		//Resized the surface, so, skip frame
 		return nullptr;
 	}
 	HUSH_VK_ASSERT(rc, "Image request from the swapchain failed!");
@@ -1284,5 +1245,4 @@ Hush::GPUMeshBuffers Hush::VulkanRenderer::UploadMesh(const std::vector<uint32_t
 	staging.Dispose(this->m_allocator);
 
 	return newSurface;
-
 }
