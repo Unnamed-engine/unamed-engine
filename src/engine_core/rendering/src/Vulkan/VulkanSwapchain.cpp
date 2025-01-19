@@ -1,7 +1,10 @@
+#define VK_NO_PROTOTYPES
+
 #include "VulkanSwapchain.hpp"
 #include "VulkanRenderer.hpp"
 #include "VkUtilsFactory.hpp"
 #include "VkTypes.hpp"
+#include <volk.h>
 
 void Hush::VulkanSwapchain::Recreate(uint32_t width, uint32_t height, Hush::VulkanRenderer* renderer)
 {
@@ -23,6 +26,11 @@ void Hush::VulkanSwapchain::Recreate(uint32_t width, uint32_t height, Hush::Vulk
 	
 	VkExtent3D drawImageExtent = { width, height, 1 };
 
+	AllocatedImage& currDrawImage = renderer->GetDrawImage();
+	currDrawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+	currDrawImage.imageExtent = drawImageExtent;
+
+
 	VkImageCreateInfo rimgInfo =
 		VkUtilsFactory::CreateImageCreateInfo(renderer->GetDrawImage().imageFormat, drawImageUsages, drawImageExtent);
 
@@ -32,14 +40,14 @@ void Hush::VulkanSwapchain::Recreate(uint32_t width, uint32_t height, Hush::Vulk
 	rimgAllocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	// allocate and create the image
-	vmaCreateImage(renderer->GetVmaAllocator(), &rimgInfo, &rimgAllocInfo, &renderer->GetDrawImage().image,
-		&renderer->GetDrawImage().allocation, nullptr);
+	vmaCreateImage(renderer->GetVmaAllocator(), &rimgInfo, &rimgAllocInfo, &currDrawImage.image,
+		&currDrawImage.allocation, nullptr);
 
 	// build a image-view for the draw image to use for rendering
 	VkImageViewCreateInfo rViewInfo = VkUtilsFactory::CreateImageViewCreateInfo(
 		renderer->GetDrawImage().imageFormat, renderer->GetDrawImage().image, VK_IMAGE_ASPECT_COLOR_BIT);
 
-	HUSH_VK_ASSERT(vkCreateImageView(renderer->GetVulkanDevice(), &rViewInfo, nullptr, &renderer->GetDrawImage().imageView),
+	HUSH_VK_ASSERT(vkCreateImageView(renderer->GetVulkanDevice(), &rViewInfo, nullptr, &currDrawImage.imageView),
 		"Failed to create image view");
 
 	renderer->GetDepthImage().imageFormat = VK_FORMAT_D32_SFLOAT;

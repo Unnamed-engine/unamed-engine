@@ -1113,7 +1113,7 @@ VkCommandBuffer Hush::VulkanRenderer::PrepareCommandBuffer(FrameData& currentFra
         currentFrame.swapchainSemaphore, nullptr, swapchainImageIndex);
 	
     //Handle resize request, pass this back to the caller to check
-    if (rc == VK_ERROR_OUT_OF_DATE_KHR) {
+    if (rc == VK_ERROR_OUT_OF_DATE_KHR || rc == VK_SUBOPTIMAL_KHR) { //Subotptimal will be thrown on different GPUs
 		//Resized
 		this->m_resizeRequested = true;
 		return nullptr;
