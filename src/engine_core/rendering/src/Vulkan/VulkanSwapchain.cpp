@@ -153,8 +153,9 @@ uint32_t Hush::VulkanSwapchain::AcquireNextImage(VkSemaphore swapchainSemaphore,
 	// Request an image from the swapchain
 	VkResult rc = vkAcquireNextImageKHR(this->m_renderer->GetVulkanDevice(), this->m_swapchain, VK_OPERATION_TIMEOUT_NS,
 		swapchainSemaphore, nullptr, &imageIndex);
-	HUSH_VK_ASSERT(rc, "Failed to acquire next image from swapchain!");
 	*shouldResize = rc == VK_ERROR_OUT_OF_DATE_KHR || rc == VK_SUBOPTIMAL_KHR;
+	if (*shouldResize) return imageIndex;
+	HUSH_VK_ASSERT(rc, "Failed to acquire next image from swapchain!");
 	return imageIndex;
 }
 
