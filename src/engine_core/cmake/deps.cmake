@@ -28,6 +28,3 @@ find_package(fastgltf CONFIG REQUIRED)
 # Catch2
 find_package(Catch2 CONFIG REQUIRED)
 include(Catch)
-
-# SPIR-V reflect
-find_package(unofficial-spirv-reflect CONFIG REQUIRED)
