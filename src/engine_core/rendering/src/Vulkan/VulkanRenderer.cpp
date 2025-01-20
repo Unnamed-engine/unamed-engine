@@ -33,6 +33,7 @@
 #include "VulkanLoader.hpp"
 #include <glm/gtx/transform.hpp>
 #include "VulkanMeshNode.hpp"
+#include "Shared/ShaderMaterial.hpp"
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -606,7 +607,13 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\sponza.glb";
+    //Just as a test, let's bind some shaders!
+    std::filesystem::path frag("C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\grid.frag.spv");
+    std::filesystem::path vert("C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\grid.vert.spv");
+    ShaderMaterial material;
+    ShaderMaterial::EError err = material.LoadShaders(this, frag, vert);
+    HUSH_ASSERT(err == ShaderMaterial::EError::None, "Failed to load shader material");
+    std::string structurePath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\sponza.glb";
     std::vector<std::shared_ptr<VulkanMeshNode>> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
     for (auto& node : nodeVector)
     {
@@ -745,8 +752,8 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
     this->InitBackgroundPipelines();
     this->InitMeshPipeline();
 
-	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.frag.spv";
-    constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.vert.spv";
+	constexpr std::string_view fragmentShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\mesh.frag.spv";
+    constexpr std::string_view vertexShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\mesh.vert.spv";
     this->m_metalRoughMaterial.BuildPipelines(this, fragmentShaderPath, vertexShaderPath);
 }
 
@@ -760,7 +767,7 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
 
     // layout code
     VkShaderModule computeDrawShader = nullptr;
-    constexpr std::string_view shaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\gradient_color.comp.spv";
+    constexpr std::string_view shaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\gradient_color.comp.spv";
     if (!VulkanHelper::LoadShaderModule(shaderPath, this->m_device, &computeDrawShader))
     {
         LogError("Error when building the compute shader");
@@ -804,8 +811,8 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
 
 void Hush::VulkanRenderer::InitMeshPipeline() noexcept
 {
-	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\tex_image.frag.spv";
-    constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\colored_triangle_mesh.vert.spv";
+	constexpr std::string_view fragmentShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\tex_image.frag.spv";
+    constexpr std::string_view vertexShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\colored_triangle_mesh.vert.spv";
 
 	VkShaderModule triangleFragShader;
 	if (!VulkanHelper::LoadShaderModule(fragmentShaderPath, this->m_device, &triangleFragShader)) {

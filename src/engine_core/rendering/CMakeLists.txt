@@ -14,6 +14,7 @@ add_library(HushRendering OBJECT
         src/Shared/ImageTexture.cpp
         src/Shared/EditorCamera.cpp
         src/ImGui/VulkanImGuiForwarder.cpp
+        src/Shared/ShaderMaterial.cpp
 )
 
 target_include_directories(HushRendering PUBLIC src)
@@ -26,6 +27,7 @@ target_link_libraries(HushRendering PUBLIC
         vk-bootstrap::vk-bootstrap
         glm::glm
         fastgltf::fastgltf
+        unofficial::spirv-reflect::spirv-reflect
         HushLog
         HushUtils
         HushInput

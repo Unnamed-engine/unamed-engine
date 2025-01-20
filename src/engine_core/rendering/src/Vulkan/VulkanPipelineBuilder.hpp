@@ -55,7 +55,9 @@ namespace Hush
     {
       public:
         static bool LoadShaderModule(const std::string_view &filePath, VkDevice device,
-                                     VkShaderModule *outShaderModule);
+                                     VkShaderModule *outShaderModule, std::vector<uint32_t>* outBuffer = nullptr);
+
+        static void ReadDataInto(std::vector<uint32_t>& buffer, std::ifstream& file, size_t fileSize);
     };
 
 } // namespace Hush

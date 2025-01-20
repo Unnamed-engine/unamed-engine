@@ -85,8 +85,7 @@ void Hush::VulkanSwapchain::Recreate(uint32_t width, uint32_t height, Hush::Vulk
 		vkDestroyImageView(renderer->GetVulkanDevice(), renderer->GetDrawImage().imageView, nullptr);
 		vmaDestroyImage(renderer->GetVmaAllocator(), renderer->GetDrawImage().image, renderer->GetDrawImage().allocation);
 	});
-	//< Init_Swapchain
-
+	
 }
 
 void Hush::VulkanSwapchain::Resize(uint32_t width, uint32_t height)

@@ -234,7 +234,7 @@ Hush::VulkanPipelineBuilder &Hush::VulkanPipelineBuilder::SetDepthFormat(VkForma
     return *this;
 }
 bool Hush::VulkanHelper::LoadShaderModule(const std::string_view &filePath, VkDevice device,
-                                          VkShaderModule *outShaderModule)
+                                          VkShaderModule *outShaderModule, std::vector<uint32_t>* outBuffer)
 {
     // open the file. With cursor at the end
     std::ifstream file(filePath.data(), std::ios::ate | std::ios::binary);
@@ -247,37 +247,47 @@ bool Hush::VulkanHelper::LoadShaderModule(const std::string_view &filePath, VkDe
     // because the cursor is at the end, it gives the size directly in bytes
     uint32_t fileSize = static_cast<uint32_t>(file.tellg());
 
+	// create a new shader module, using the buffer we loaded
+	VkShaderModuleCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.pNext = nullptr;
+
+    
     // spirv expects the buffer to be on uint32, so make sure to reserve a int
     // vector big enough for the entire file
-    std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
-
-    // put file cursor at beginning
-    file.seekg(0);
-
-    // load the entire file into the buffer
-    auto *fileData =
-        reinterpret_cast<char *>(buffer.data()); // We downsize this, but idk, this is how it expects us to use this
-    file.read(fileData, fileSize);
-
-    // now that the file is loaded into the buffer, we can close it
-    file.close();
-
-    // create a new shader module, using the buffer we loaded
-    VkShaderModuleCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.pNext = nullptr;
-
-    // codeSize has to be in bytes, so multply the ints in the buffer by size of
-    // int to know the real size of the buffer
-    createInfo.codeSize = buffer.size() * sizeof(uint32_t);
-    createInfo.pCode = buffer.data();
-
-    // check that the creation goes well.
-    VkShaderModule shaderModule = nullptr;
-    if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-    {
-        return false;
+    size_t bufferSize = fileSize / sizeof(uint32_t);
+    std::vector<uint32_t> localBuffer;
+    if (outBuffer == nullptr) {
+        //Set the out buffer to the local address since we weren't passed an actual instance in memory
+        outBuffer = &localBuffer;
     }
-    *outShaderModule = shaderModule;
-    return true;
+	outBuffer->resize(bufferSize, 0);
+    
+	ReadDataInto(*outBuffer, file, fileSize);
+	// codeSize has to be in bytes, so multply the ints in the buffer by size of
+	// int to know the real size of the buffer
+	createInfo.codeSize = outBuffer->size() * sizeof(uint32_t);
+	createInfo.pCode = outBuffer->data();
+
+	// check that the creation goes well.
+	VkShaderModule shaderModule = nullptr;
+	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+		return false;
+	}
+	*outShaderModule = shaderModule;
+	return true;
+}
+
+void Hush::VulkanHelper::ReadDataInto(std::vector<uint32_t>& buffer, std::ifstream& file, size_t fileSize)
+{
+	// put file cursor at beginning
+	file.seekg(0);
+
+	// load the entire file into the buffer
+	auto* fileData =
+		reinterpret_cast<char*>(buffer.data()); // We downsize this, but idk, this is how it expects us to use this
+	file.read(fileData, fileSize);
+
+	// now that the file is loaded into the buffer, we can close it
+	file.close();
 }
