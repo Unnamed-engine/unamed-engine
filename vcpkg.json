@@ -15,6 +15,7 @@
     "glm",
     "outcome",
     "fastgltf",
-    "catch2"
+    "catch2",
+    "spirv-reflect"
   ]
 }

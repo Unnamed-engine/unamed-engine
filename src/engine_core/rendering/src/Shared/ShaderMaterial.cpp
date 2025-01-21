@@ -43,6 +43,8 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 	//Reflect on fragment shader
 	std::span<uint32_t> byteCodeSpan(spirvByteCodeBuffer.begin(), spirvByteCodeBuffer.end());
 	Result<std::vector<ShaderBindings>, EError> bindingsResult = this->ReflectShader(byteCodeSpan);
+	
+	//Bind
 
 	VkShaderModule meshVertexShader;
 	if (!VulkanHelper::LoadShaderModule(vertexShaderPath.string(), device, &meshVertexShader, &spirvByteCodeBuffer)) {
@@ -50,6 +52,10 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 	}
 
 	//Reflect on vertex shader (using the same buffer to avoid more allocations)
+	byteCodeSpan = std::span<uint32_t>(spirvByteCodeBuffer.begin(), spirvByteCodeBuffer.end());
+	bindingsResult = this->ReflectShader(byteCodeSpan);
+	
+	//Bind
 
 	VkPushConstantRange matrixRange{};
 	matrixRange.offset = 0;
@@ -131,21 +137,28 @@ void Hush::ShaderMaterial::GenerateMaterialInstance(OpaqueDescriptorAllocator* d
 
 Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hush::ShaderMaterial::ReflectShader(std::span<uint32_t> shaderBinary)
 {
-#ifdef HUSH_VULKAN_IMPL
 	size_t byteCodeLength = shaderBinary.size() * sizeof(uint32_t);
 	SpvReflectShaderModule reflectionModule;
 	SpvReflectResult rc = spvReflectCreateShaderModule(byteCodeLength, shaderBinary.data(), &reflectionModule);
-	
+
 	if (rc != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
 		LogFormat(ELogLevel::Error, "Failed to perform reflection on shader, error: {}", magic_enum::enum_name(rc));
 		return EError::ReflectionError;
 	}
+
 	uint32_t pushConstantsCount{};
+	uint32_t inputVarsCount{};
+	uint32_t descriptorCount{};
+
 	spvReflectEnumeratePushConstantBlocks(&reflectionModule, &pushConstantsCount, nullptr);
+	spvReflectEnumerateInputVariables(&reflectionModule, &inputVarsCount, nullptr);
+	spvReflectEnumerateDescriptorBindings(&reflectionModule, &descriptorCount, nullptr);
+
 	std::vector<SpvReflectBlockVariable*> pushConstants(pushConstantsCount);
 	spvReflectEnumeratePushConstantBlocks(&reflectionModule, &pushConstantsCount, pushConstants.data());
-	std::vector<ShaderBindings> bindings(pushConstantsCount);
 
+	std::vector<ShaderBindings> bindings;
+	bindings.reserve(pushConstantsCount + inputVarsCount + descriptorCount);
 	for (const SpvReflectBlockVariable* pushConstant : pushConstants) {
 		ShaderBindings binding;
 		binding.name = pushConstant->name;
@@ -153,13 +166,115 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 		binding.size = pushConstant->size;
 		binding.offset = pushConstant->offset;
 		binding.stageFlags = reflectionModule.shader_stage;
-
-		bindings.push_back(binding);
+		binding.type = ShaderBindings::EBindingType::PushConstant;
+		bindings.emplace_back(binding);
 	}
 
+	std::vector<SpvReflectInterfaceVariable*> inputVars(inputVarsCount);
+	spvReflectEnumerateInputVariables(&reflectionModule, &inputVarsCount, inputVars.data());
+
+
+	for (const SpvReflectInterfaceVariable* inputVar : inputVars) {
+		ShaderBindings binding;
+		binding.type = ShaderBindings::EBindingType::InputVariable;
+		binding.name = inputVar->name;
+		binding.bindingIndex = inputVar->location;
+		binding.size = 0;
+		binding.offset = inputVar->word_offset.location;
+		binding.stageFlags = reflectionModule.shader_stage;
+		bindings.emplace_back(binding);
+	}
+	std::vector<SpvReflectDescriptorBinding*> descriptorBindings(descriptorCount);
+	spvReflectEnumerateDescriptorBindings(&reflectionModule, &descriptorCount, descriptorBindings.data());
+
+
+	for (const SpvReflectDescriptorBinding* descriptor : descriptorBindings) {
+
+		ShaderBindings binding;
+		binding.name = descriptor->name;
+		binding.bindingIndex = descriptor->binding;
+		binding.size = descriptor->block.size;
+		binding.offset = descriptor->block.offset;
+		//binding.stageFlags = descriptor->;
+		switch (descriptor->descriptor_type) {
+		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+			binding.type = ShaderBindings::EBindingType::UniformBuffer;
+			break;
+		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+			binding.type = ShaderBindings::EBindingType::StorageBuffer;
+			break;
+		case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+			binding.type = ShaderBindings::EBindingType::Sampler;
+			break;
+		case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+			binding.type = ShaderBindings::EBindingType::Texture;
+			break;
+		default:
+			LogFormat(ELogLevel::Warn, "Binding type {} not supported!", magic_enum::enum_name(descriptor->descriptor_type));
+			binding.type = ShaderBindings::EBindingType::Unknown;
+			break;
+		}
+
+		bindings.emplace_back(binding);
+		if (descriptor->descriptor_type != SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
+			continue;
+		}
+
+		//Now, for each member, add it if applicable
+		for (uint32_t i = 0; i < descriptor->block.member_count; ++i) {
+			const SpvReflectBlockVariable& member = descriptor->block.members[i];
+
+			// Create a new ShaderBindings entry for each member
+			Hush::ShaderBindings memberBinding;
+			memberBinding.name = member.name;
+			memberBinding.bindingIndex = descriptor->binding;  // Same binding index as the block
+			memberBinding.setIndex = descriptor->set;
+			memberBinding.size = member.size;
+			memberBinding.offset = member.offset;  // Offset within the uniform block
+			memberBinding.type = ShaderBindings::EBindingType::UniformBufferMember;  // Add a type for UBO members
+			memberBinding.stageFlags = descriptor->spirv_id;
+
+			bindings.emplace_back(memberBinding);
+		}
+
+
+	}
 	spvReflectDestroyShaderModule(&reflectionModule);
-
 	return bindings;
-#endif // HUSH_VULKAN_IMPL
-
+}
+uint32_t Hush::ShaderMaterial::GetAPIBinding(Hush::ShaderBindings::EBindingType agnosticBinding)
+{
+#ifdef HUSH_VULKAN_IMPL
+	switch (agnosticBinding)
+	{
+		case ShaderBindings::EBindingType::Sampler:
+            return VK_DESCRIPTOR_TYPE_SAMPLER;
+        case ShaderBindings::EBindingType::CombinedImageSampler:
+            return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        case ShaderBindings::EBindingType::Texture:
+            return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        case ShaderBindings::EBindingType::StorageImage:
+            return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        case ShaderBindings::EBindingType::UniformTexelBuffer:
+            return VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+        case ShaderBindings::EBindingType::StorageTexelBuffer:
+            return VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
+        case ShaderBindings::EBindingType::UniformBuffer:
+            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        case ShaderBindings::EBindingType::StorageBuffer:
+            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        case ShaderBindings::EBindingType::UniformBufferDynamic:
+            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        case ShaderBindings::EBindingType::StorageBufferDynamic:
+            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+        case ShaderBindings::EBindingType::InputAttachment:
+            return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        case ShaderBindings::EBindingType::InlineUniformBlock:
+            return VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK;
+        case ShaderBindings::EBindingType::AccelerationStructure:
+            return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+        default:
+            return VK_DESCRIPTOR_TYPE_MAX_ENUM;
+	}
+#endif
 }

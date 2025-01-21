@@ -3,6 +3,7 @@
 #include <span>
 #include "ShaderBindings.hpp"
 #include "Result.hpp"
+
 namespace Hush {
 	struct OpaqueMaterialPipeline;
 	struct OpaqueDescriptorAllocator;
@@ -29,6 +30,8 @@ namespace Hush {
 
 	private:
 		Result<std::vector<ShaderBindings>, EError> ReflectShader(std::span<std::uint32_t> shaderBinary);
+
+		uint32_t GetAPIBinding(ShaderBindings::EBindingType agnosticBinding);
 
 		IRenderer* m_renderer;
 		OpaqueMaterialPipeline* m_materialPipeline;
