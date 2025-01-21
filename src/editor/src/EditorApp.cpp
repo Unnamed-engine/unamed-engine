@@ -21,26 +21,31 @@ class EditorApp final : public Hush::IApplication
 
     ~EditorApp() override = default;
 
-    void Init() override
+    void UserInit() override
     {
     }
 
-    void Update() override
+    void UserUpdate(float delta) override
     {
-
+        (void)delta;
     }
 
-    void OnRender() override
+    void UserFixedUpdate(float delta) override
+    {
+        (void)delta;
+    }
+
+    void UserOnRender() override
     {
         this->userInterface.DrawPanels();
     }
 
-    void OnPostRender() override
+    void UserOnPostRender() override
     {
 
     }
 
-    void OnPreRender() override
+    void UserOnPreRender() override
     {
     }
 private:

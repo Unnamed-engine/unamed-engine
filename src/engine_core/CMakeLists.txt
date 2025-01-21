@@ -10,6 +10,7 @@ add_subdirectory(scripting)
 add_subdirectory(resources)
 add_subdirectory(filesystem)
 add_subdirectory(threading)
+add_subdirectory(core)
 
 add_library(HushEngine STATIC
         src/main.cpp
