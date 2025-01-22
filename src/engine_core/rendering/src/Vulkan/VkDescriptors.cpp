@@ -4,12 +4,13 @@
 #include <volk.h>
 
 
-void DescriptorLayoutBuilder::AddBinding(uint32_t binding, VkDescriptorType type)
+void DescriptorLayoutBuilder::AddBinding(uint32_t binding, VkDescriptorType type, uint32_t stageFlags)
 {
     VkDescriptorSetLayoutBinding newbind{};
     newbind.binding = binding;
     newbind.descriptorCount = 1;
     newbind.descriptorType = type;
+    newbind.stageFlags = stageFlags;
 
     bindings.push_back(newbind);
 }

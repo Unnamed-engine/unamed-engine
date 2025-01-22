@@ -1,14 +1,15 @@
 #include "ShaderMaterial.hpp"
-#include "Vulkan/VkTypes.hpp"
 #include <spirv_reflect.h>
 #include <magic_enum.hpp>
 
 #ifdef HUSH_VULKAN_IMPL
+#define VK_NO_PROTOTYPES
+#include <volk.h>
+#include "Vulkan/VkTypes.hpp"
 #include "Vulkan/VulkanRenderer.hpp"
 #include "Vulkan/VulkanPipelineBuilder.hpp"
 #include "Vulkan/VkMaterialInstance.hpp"
 #include "Vulkan/VkUtilsFactory.hpp"
-
 namespace Hush {
 	struct OpaqueMaterialPipeline {
 		VkMaterialPipeline pipeline;
@@ -42,10 +43,8 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 
 	//Reflect on fragment shader
 	std::span<uint32_t> byteCodeSpan(spirvByteCodeBuffer.begin(), spirvByteCodeBuffer.end());
-	Result<std::vector<ShaderBindings>, EError> bindingsResult = this->ReflectShader(byteCodeSpan);
+	Result<std::vector<ShaderBindings>, EError> fragBindingsResult = this->ReflectShader(byteCodeSpan);
 	
-	//Bind
-
 	VkShaderModule meshVertexShader;
 	if (!VulkanHelper::LoadShaderModule(vertexShaderPath.string(), device, &meshVertexShader, &spirvByteCodeBuffer)) {
 		return EError::VertexShaderNotFound;
@@ -53,43 +52,24 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 
 	//Reflect on vertex shader (using the same buffer to avoid more allocations)
 	byteCodeSpan = std::span<uint32_t>(spirvByteCodeBuffer.begin(), spirvByteCodeBuffer.end());
-	bindingsResult = this->ReflectShader(byteCodeSpan);
-	
-	//Bind
-
-	VkPushConstantRange matrixRange{};
-	matrixRange.offset = 0;
-	matrixRange.size = sizeof(GPUDrawPushConstants);
-	matrixRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	Result<std::vector<ShaderBindings>, EError> vertBindingsResult = this->ReflectShader(byteCodeSpan);
 
 	//Create the material layout
 	DescriptorLayoutBuilder layoutBuilder{};
-	layoutBuilder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-	layoutBuilder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-	layoutBuilder.AddBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+	//layoutBuilder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stageFlagsHere);
+	//layoutBuilder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stageFlagsHere);
+	//layoutBuilder.AddBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stageFlagsHere);
 	
 	this->m_materialPipeline->descriptorLayout = layoutBuilder.Build(device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
-	// Create the mesh layouts
-	VkDescriptorSetLayout layouts[] = { rendererImpl->GetGpuSceneDataDescriptorLayout(), this->m_materialPipeline->descriptorLayout };
-
-	VkPipelineLayoutCreateInfo meshLayoutInfo = VkUtilsFactory::PipelineLayoutCreateInfo();
-	meshLayoutInfo.setLayoutCount = 2;
-	meshLayoutInfo.pSetLayouts = layouts;
-	meshLayoutInfo.pPushConstantRanges = &matrixRange;
-	meshLayoutInfo.pushConstantRangeCount = 1;
-
-	VkPipelineLayout newLayout;
-	VkResult rc = vkCreatePipelineLayout(device, &meshLayoutInfo, nullptr, &newLayout);
-	HUSH_VK_ASSERT(rc, "Failed to create pipeline mesh pipeline layout!");
-	this->m_materialPipeline->pipeline.layout = newLayout;
-
+	this->BindShader(vertBindingsResult.value(), fragBindingsResult.value());
 	// build the stage-create-info for both vertex and fragment stages. This lets
 	// the pipeline know the shader modules per stage
-	VulkanPipelineBuilder pipelineBuilder(newLayout);
+	VulkanPipelineBuilder pipelineBuilder(this->m_materialPipeline->pipeline.layout);
 	pipelineBuilder.SetShaders(meshVertexShader, meshFragmentShader);
 	pipelineBuilder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	pipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//TODO: Make cull mode dynamic depending on the reflected shader code
 	pipelineBuilder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
 	pipelineBuilder.SetMultiSamplingNone();
 	pipelineBuilder.DisableBlending();
@@ -277,4 +257,54 @@ uint32_t Hush::ShaderMaterial::GetAPIBinding(Hush::ShaderBindings::EBindingType 
             return VK_DESCRIPTOR_TYPE_MAX_ENUM;
 	}
 #endif
+}
+
+Hush::ShaderMaterial::EError Hush::ShaderMaterial::BindShader(const std::vector<ShaderBindings>& vertBindings, const std::vector<ShaderBindings>& fragBindings)
+{
+#ifdef HUSH_VULKAN_IMPL
+	VulkanRenderer* rendererImpl = static_cast<VulkanRenderer*>(this->m_renderer);
+	VkDevice device = rendererImpl->GetVulkanDevice();
+
+	std::vector<VkPushConstantRange> pushConstants;
+	for (const ShaderBindings& b : vertBindings) {
+		if (b.type != ShaderBindings::EBindingType::PushConstant) {
+			continue;
+		}
+		pushConstants.push_back({
+				.stageFlags = b.stageFlags,
+				.offset = b.offset,
+				.size = b.size
+		});
+	}
+	for (const ShaderBindings& b : fragBindings) {
+		if (b.type != ShaderBindings::EBindingType::PushConstant) {
+			continue;
+		}
+		pushConstants.push_back({
+			.stageFlags = b.stageFlags,
+			.offset = b.offset,
+			.size = b.size
+		});
+	}
+
+	const VkDescriptorSetLayout layouts[] = {
+		rendererImpl->GetGpuSceneDataDescriptorLayout(),
+		m_materialPipeline->descriptorLayout
+	};
+
+	//Bind push constants
+	VkPipelineLayoutCreateInfo layoutInfo = VkUtilsFactory::PipelineLayoutCreateInfo();
+	layoutInfo.setLayoutCount = 2;
+	layoutInfo.pSetLayouts = layouts;
+	layoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstants.size());
+	layoutInfo.pPushConstantRanges = pushConstants.data();
+
+	VkPipelineLayout newLayout;
+	VkResult rc = vkCreatePipelineLayout(device, &layoutInfo, nullptr, &newLayout);
+	HUSH_VK_ASSERT(rc, "Failed to create pipeline layout for custom shader material!");
+
+	this->m_materialPipeline->pipeline.layout = newLayout;
+
+	return EError::None;
+#endif // HUSH_VULKAN_IMPL
 }

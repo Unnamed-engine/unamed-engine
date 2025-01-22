@@ -15,7 +15,17 @@ namespace Hush {
 			None = 0,
 			FragmentShaderNotFound,
 			VertexShaderNotFound,
-			ReflectionError
+			ReflectionError,
+			PipelineLayoutCreationFailed
+		};
+
+		enum class EShaderInputType {
+			Float32,
+			Vec2,
+			Vec3,
+			Vec4,
+			Bool,
+			Int
 		};
 
 		ShaderMaterial() = default;
@@ -32,6 +42,8 @@ namespace Hush {
 		Result<std::vector<ShaderBindings>, EError> ReflectShader(std::span<std::uint32_t> shaderBinary);
 
 		uint32_t GetAPIBinding(ShaderBindings::EBindingType agnosticBinding);
+
+		EError BindShader(const std::vector<ShaderBindings>& vertBindings, const std::vector<ShaderBindings>& fragBindings);
 
 		IRenderer* m_renderer;
 		OpaqueMaterialPipeline* m_materialPipeline;

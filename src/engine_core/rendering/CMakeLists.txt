@@ -17,6 +17,9 @@ add_library(HushRendering OBJECT
         src/Shared/ShaderMaterial.cpp
 )
 
+# This is the default renderer and should be switched accordingly
+add_compile_definitions(HUSH_VULKAN_IMPL)
+
 target_include_directories(HushRendering PUBLIC src)
 
 target_link_libraries(HushRendering PUBLIC

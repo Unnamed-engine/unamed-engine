@@ -30,12 +30,12 @@
 #define HUSH_ASSERT(condition, fmtFormat, ...)                                                                         \
     if (!(condition))                                                                                                    \
     {                                                                                                                  \
-        Hush::LogFormat(Hush::ELogLevel::Critical, "Assertion error! " fmtFormat, ##__VA_ARGS__);                      \
+        Hush::LogFormat(Hush::ELogLevel::Critical, "Assertion error at {} line {}! " fmtFormat, __FILE__, __LINE__, ##__VA_ARGS__); \
         HUSH_DEBUG_BREAK;                                                                                              \
     }
 
 #define HUSH_RESULT_ASSERT(result, message, ...) \
-HUSH_ASSERT(!result.has_error(), "{} error: {}", message, magic_enum::enum_name(result.error()))
+HUSH_ASSERT(result.has_value(), "{} error: {}", message, magic_enum::enum_name(result.error()))
 
 
 #define HUSH_STATIC_ASSERT(condition, ...) static_assert(condition, #__VA_ARGS__)

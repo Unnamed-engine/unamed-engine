@@ -614,8 +614,10 @@ void Hush::VulkanRenderer::InitRenderables()
     ShaderMaterial::EError err = material.LoadShaders(this, frag, vert);
     HUSH_ASSERT(err == ShaderMaterial::EError::None, "Failed to load shader material");
     std::string structurePath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\sponza.glb";
-    std::vector<std::shared_ptr<VulkanMeshNode>> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
-    for (auto& node : nodeVector)
+    using MeshVector_t = std::vector<std::shared_ptr<VulkanMeshNode>>;
+    Result<MeshVector_t, VulkanLoader::EError> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath);
+    HUSH_RESULT_ASSERT(nodeVector, "Error loading meshes");
+    for (auto& node : nodeVector.value())
     {
         this->m_loadedNodes[node->GetMesh().name] = node;
     }

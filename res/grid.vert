@@ -6,8 +6,12 @@ layout(set = 0, binding = 0) uniform ViewUniforms {
     vec3 pos;
 } view;
 
-layout(location = 1) out vec3 nearPoint;
-layout(location = 2) out vec3 farPoint;
+layout(location = 0) out float near;     // Added for fragment shader
+layout(location = 1) out float far;      // Added for fragment shader
+layout(location = 2) out vec3 nearPoint; // Existing
+layout(location = 3) out vec3 farPoint;  // Existing
+layout(location = 4) out mat4 fragView;  // Added for fragment shader
+layout(location = 8) out mat4 fragProj;  // Added for fragment shader
 
 // Grid position are in clipped space
 vec3 gridPlane[6] = vec3[] (
