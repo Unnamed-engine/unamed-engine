@@ -4,11 +4,21 @@
 #include "ShaderBindings.hpp"
 #include "Result.hpp"
 
+class SpvReflectTypeDescription;
+
 namespace Hush {
-	struct OpaqueMaterialPipeline;
+	struct OpaqueMaterialData;
 	struct OpaqueDescriptorAllocator;
+#if defined(HUSH_VULKAN_IMPL)
+	struct VkMaterialInstance;
+	using GraphicsApiMaterialInstance = VkMaterialInstance;
+#endif
 
 	class IRenderer;
+	/// @brief Represents a material created by a custom shader with dynamic mappings and reflections
+	/// The performance impact of this class is considerable since it needs to keep track of the bindings
+	/// in both RAM and GPU, as well as process the shader initially with Reflection (initialization cost)
+	/// This class's interface is Rendering API agnostic
 	class ShaderMaterial {
 	public:
 		enum class EError {
@@ -45,7 +55,20 @@ namespace Hush {
 
 		EError BindShader(const std::vector<ShaderBindings>& vertBindings, const std::vector<ShaderBindings>& fragBindings);
 
+		void InitializeMaterialDataMembers();
+
+		size_t CalculateTypeSize(const SpvReflectTypeDescription* type);
+
 		IRenderer* m_renderer;
-		OpaqueMaterialPipeline* m_materialPipeline;
+		OpaqueMaterialData* m_materialData;
+
+		// A large-ish data pool that holds all the inputs
+		// for the data that needs to be sent to the material
+		// womp, womp, malloc it is
+		std::vector<std::byte> m_shaderInputData;
+
+		std::vector<std::byte> m_uniformBufferData;
+
+		std::unique_ptr<GraphicsApiMaterialInstance> m_internalMaterial;
 	};
 }

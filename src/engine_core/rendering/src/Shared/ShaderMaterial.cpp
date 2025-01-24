@@ -11,18 +11,20 @@
 #include "Vulkan/VkMaterialInstance.hpp"
 #include "Vulkan/VkUtilsFactory.hpp"
 namespace Hush {
-	struct OpaqueMaterialPipeline {
+	struct OpaqueMaterialData {
 		VkMaterialPipeline pipeline;
 		VkDescriptorSetLayout descriptorLayout;
 		DescriptorWriter writer;
+		VkBufferCreateInfo uniformBufferCreateInfo;
 	};
 }
 #endif
+#include "BitwiseUtils.hpp"
 
 Hush::ShaderMaterial::~ShaderMaterial()
 {
 	//Free resources more specifically later
-	delete this->m_materialPipeline;
+	delete this->m_materialData;
 }
 
 Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* renderer, const std::filesystem::path& fragmentShaderPath, const std::filesystem::path& vertexShaderPath)
@@ -32,7 +34,8 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 	VulkanRenderer* rendererImpl = static_cast<VulkanRenderer*>(renderer);
 	VkDevice device = rendererImpl->GetVulkanDevice();
 
-	this->m_materialPipeline = new OpaqueMaterialPipeline();
+	this->m_materialData = new OpaqueMaterialData();
+	this->InitializeMaterialDataMembers();
 
 	VkShaderModule meshFragmentShader;
 	std::vector<uint32_t> spirvByteCodeBuffer;
@@ -54,22 +57,14 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 	byteCodeSpan = std::span<uint32_t>(spirvByteCodeBuffer.begin(), spirvByteCodeBuffer.end());
 	Result<std::vector<ShaderBindings>, EError> vertBindingsResult = this->ReflectShader(byteCodeSpan);
 
-	//Create the material layout
-	DescriptorLayoutBuilder layoutBuilder{};
-	//layoutBuilder.AddBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stageFlagsHere);
-	//layoutBuilder.AddBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stageFlagsHere);
-	//layoutBuilder.AddBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stageFlagsHere);
-	
-	this->m_materialPipeline->descriptorLayout = layoutBuilder.Build(device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-
 	this->BindShader(vertBindingsResult.value(), fragBindingsResult.value());
 	// build the stage-create-info for both vertex and fragment stages. This lets
 	// the pipeline know the shader modules per stage
-	VulkanPipelineBuilder pipelineBuilder(this->m_materialPipeline->pipeline.layout);
+	VulkanPipelineBuilder pipelineBuilder(this->m_materialData->pipeline.layout);
 	pipelineBuilder.SetShaders(meshVertexShader, meshFragmentShader);
 	pipelineBuilder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	pipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
-	//TODO: Make cull mode dynamic depending on the reflected shader code
+	//TODO: Make cull mode dynamic depending on the reflected shader code / inspector
 	pipelineBuilder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
 	pipelineBuilder.SetMultiSamplingNone();
 	pipelineBuilder.DisableBlending();
@@ -80,7 +75,7 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 	pipelineBuilder.SetDepthFormat(rendererImpl->GetDepthImage().imageFormat);
 
 	// finally build the pipeline
-	this->m_materialPipeline->pipeline.pipeline = pipelineBuilder.Build(device);
+	this->m_materialData->pipeline.pipeline = pipelineBuilder.Build(device);
 
 	//clean structures
 	vkDestroyShaderModule(device, meshFragmentShader, nullptr);
@@ -103,7 +98,7 @@ void Hush::ShaderMaterial::GenerateMaterialInstance(OpaqueDescriptorAllocator* d
 
 
 	//Not initialized material layout here from VkLoader
-	matData.materialSet = realDescriptorAllocator->Allocate(device, this->m_materialPipeline->descriptorLayout);
+	matData.materialSet = realDescriptorAllocator->Allocate(device, this->m_materialData->descriptorLayout);
 
 	// This should be where I write to the shader the stuff I want, but I wouldn't know that until I have the shader
 	//this->m_materialPipeline->writer.Clear();
@@ -154,20 +149,24 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 	spvReflectEnumerateInputVariables(&reflectionModule, &inputVarsCount, inputVars.data());
 
 
+	size_t inputVarsByteLength = this->m_shaderInputData.size();
 	for (const SpvReflectInterfaceVariable* inputVar : inputVars) {
 		ShaderBindings binding;
 		binding.type = ShaderBindings::EBindingType::InputVariable;
 		binding.name = inputVar->name;
 		binding.bindingIndex = inputVar->location;
-		binding.size = 0;
+		size_t calculatedSize = this->CalculateTypeSize(inputVar->type_description);
+		binding.size = static_cast<uint32_t>(calculatedSize);
 		binding.offset = inputVar->word_offset.location;
 		binding.stageFlags = reflectionModule.shader_stage;
+		inputVarsByteLength += calculatedSize;
 		bindings.emplace_back(binding);
 	}
+	this->m_shaderInputData.resize(inputVarsByteLength);
 	std::vector<SpvReflectDescriptorBinding*> descriptorBindings(descriptorCount);
 	spvReflectEnumerateDescriptorBindings(&reflectionModule, &descriptorCount, descriptorBindings.data());
 
-
+	size_t uniformBuffersSize = this->m_uniformBufferData.size();
 	for (const SpvReflectDescriptorBinding* descriptor : descriptorBindings) {
 
 		ShaderBindings binding;
@@ -175,10 +174,11 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 		binding.bindingIndex = descriptor->binding;
 		binding.size = descriptor->block.size;
 		binding.offset = descriptor->block.offset;
-		//binding.stageFlags = descriptor->;
+		binding.stageFlags = 0;
 		switch (descriptor->descriptor_type) {
 		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
 			binding.type = ShaderBindings::EBindingType::UniformBuffer;
+			uniformBuffersSize += binding.size;
 			break;
 		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:
 			binding.type = ShaderBindings::EBindingType::StorageBuffer;
@@ -194,7 +194,7 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 			binding.type = ShaderBindings::EBindingType::Unknown;
 			break;
 		}
-
+		this->m_uniformBufferData.resize(uniformBuffersSize);
 		bindings.emplace_back(binding);
 		if (descriptor->descriptor_type != SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
 			continue;
@@ -266,30 +266,59 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::BindShader(const std::vector<
 	VkDevice device = rendererImpl->GetVulkanDevice();
 
 	std::vector<VkPushConstantRange> pushConstants;
+	DescriptorLayoutBuilder layoutBuilder{};
+
+	size_t uniformBufferSize = 0;
+
 	for (const ShaderBindings& b : vertBindings) {
-		if (b.type != ShaderBindings::EBindingType::PushConstant) {
-			continue;
-		}
-		pushConstants.push_back({
+		//TODO: Refactor this as a function
+		switch (b.type)
+		{
+		case ShaderBindings::EBindingType::PushConstant:
+			pushConstants.push_back({
 				.stageFlags = b.stageFlags,
 				.offset = b.offset,
 				.size = b.size
-		});
+			});
+			break;
+
+		case ShaderBindings::EBindingType::UniformBuffer:
+			//For uniform buffers, we can add stuff to allocate a VK memory buffer
+			uniformBufferSize += b.size;
+			//NOTE: Yes, the lack of a break here is intentional
+		case ShaderBindings::EBindingType::CombinedImageSampler:
+			//Add bindings for applicable types
+			layoutBuilder.AddBinding(b.bindingIndex, static_cast<VkDescriptorType>(this->GetAPIBinding(b.type)), b.stageFlags);
+			break;
+		}
 	}
 	for (const ShaderBindings& b : fragBindings) {
-		if (b.type != ShaderBindings::EBindingType::PushConstant) {
-			continue;
+		switch (b.type)
+		{
+		case ShaderBindings::EBindingType::PushConstant:
+			pushConstants.push_back({
+				.stageFlags = b.stageFlags,
+				.offset = b.offset,
+				.size = b.size
+				});
+			break;
+
+		case ShaderBindings::EBindingType::UniformBuffer:
+			//For uniform buffers, we can add stuff to allocate a VK memory buffer
+			uniformBufferSize += b.size;
+			//NOTE: Yes, the lack of a break here is intentional
+		case ShaderBindings::EBindingType::CombinedImageSampler:
+			//Add bindings for applicable types
+			layoutBuilder.AddBinding(b.bindingIndex, static_cast<VkDescriptorType>(this->GetAPIBinding(b.type)), b.stageFlags);
+			break;
 		}
-		pushConstants.push_back({
-			.stageFlags = b.stageFlags,
-			.offset = b.offset,
-			.size = b.size
-		});
 	}
+
+	this->m_materialData->descriptorLayout = layoutBuilder.Build(device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
 	const VkDescriptorSetLayout layouts[] = {
 		rendererImpl->GetGpuSceneDataDescriptorLayout(),
-		m_materialPipeline->descriptorLayout
+		m_materialData->descriptorLayout
 	};
 
 	//Bind push constants
@@ -303,8 +332,51 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::BindShader(const std::vector<
 	VkResult rc = vkCreatePipelineLayout(device, &layoutInfo, nullptr, &newLayout);
 	HUSH_VK_ASSERT(rc, "Failed to create pipeline layout for custom shader material!");
 
-	this->m_materialPipeline->pipeline.layout = newLayout;
+	this->m_materialData->pipeline.layout = newLayout;
+
 
 	return EError::None;
 #endif // HUSH_VULKAN_IMPL
+}
+
+void Hush::ShaderMaterial::InitializeMaterialDataMembers()
+{
+#ifdef HUSH_VULKAN_IMPL
+	this->m_materialData->uniformBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	this->m_materialData->uniformBufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	this->m_materialData->uniformBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+#endif // HUSH_VULKAN_IMPL
+}
+
+size_t Hush::ShaderMaterial::CalculateTypeSize(const SpvReflectTypeDescription* type)
+{
+	int32_t typeFlag = type->type_flags; //Narrow this from uint to int
+	constexpr SpvReflectTypeFlags fourByteFlags = SPV_REFLECT_TYPE_FLAG_BOOL | SPV_REFLECT_TYPE_FLAG_INT | SPV_REFLECT_TYPE_FLAG_FLOAT;
+	size_t cumSize = 0;
+	constexpr size_t byteLengthBits = 8;
+	if (Bitwise::HasCompositeFlag(typeFlag, fourByteFlags)) {
+		cumSize += type->traits.numeric.scalar.width / byteLengthBits; //Use standard integers to base our sizes off of
+	}
+
+	if (Bitwise::HasFlag(typeFlag, SPV_REFLECT_TYPE_FLAG_MATRIX)) {
+		uint32_t rows = type->traits.numeric.matrix.row_count;
+		uint32_t cols = type->traits.numeric.matrix.column_count;
+		cumSize *= rows * cols;
+	}
+	//Wrapping this in an else because matrices have more "priority" than vectors
+	//As matrix types will also contain the vector flag and will lead to duplicate calculations
+	else if (Bitwise::HasFlag(typeFlag, SPV_REFLECT_TYPE_FLAG_VECTOR)) {
+		uint32_t component_count = type->traits.numeric.vector.component_count;
+		cumSize *= component_count;
+	}
+
+	if (Bitwise::HasFlag(typeFlag, SPV_REFLECT_TYPE_FLAG_STRUCT)) {
+		size_t total_size = 0;
+		for (uint32_t i = 0; i < type->member_count; ++i) {
+			total_size += CalculateTypeSize(&type->members[i]);
+		}
+		return total_size;
+	}
+
+	return cumSize; // Handle unsupported types
 }
