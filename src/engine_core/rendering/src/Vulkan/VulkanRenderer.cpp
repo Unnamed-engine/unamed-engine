@@ -270,6 +270,8 @@ void Hush::VulkanRenderer::UpdateSceneObjects(float delta)
 
 void Hush::VulkanRenderer::InitRendering()
 {
+    this->m_editorCamera = EditorCamera(70.0f, static_cast<float>(this->m_width), static_cast<float>(this->m_height), 0.1f, 10000.f);
+    
     this->CreateSyncObjects();
 
     this->InitializeCommands();
@@ -283,7 +285,6 @@ void Hush::VulkanRenderer::InitRendering()
 
     this->InitRenderables();
 
-    this->m_editorCamera = EditorCamera(70.0f, static_cast<float>(this->m_width), static_cast<float>(this->m_height), 0.1f, 10000.f);
 
 }
 
@@ -407,12 +408,12 @@ VkQueue Hush::VulkanRenderer::GetGraphicsQueue() const noexcept
     return this->m_graphicsQueue;
 }
 
-FrameData &Hush::VulkanRenderer::GetCurrentFrame() noexcept
+Hush::FrameData &Hush::VulkanRenderer::GetCurrentFrame() noexcept
 {
     return this->m_frames.at(this->m_frameNumber % FRAME_OVERLAP);
 }
 
-FrameData &Hush::VulkanRenderer::GetLastFrame() noexcept
+Hush::FrameData &Hush::VulkanRenderer::GetLastFrame() noexcept
 {
     return this->m_frames.at((this->m_frameNumber - 1) % FRAME_OVERLAP);
 }
@@ -437,7 +438,7 @@ Hush::GLTFMetallicRoughness& Hush::VulkanRenderer::GetMetalRoughMaterial() noexc
     return this->m_metalRoughMaterial;
 }
 
-DescriptorAllocatorGrowable& Hush::VulkanRenderer::GlobalDescriptorAllocator() noexcept
+Hush::DescriptorAllocatorGrowable& Hush::VulkanRenderer::GlobalDescriptorAllocator() noexcept
 {
     return this->m_globalDescriptorAllocator;
 }
@@ -607,12 +608,6 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    //Just as a test, let's bind some shaders!
-    std::filesystem::path frag("C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\grid.frag.spv");
-    std::filesystem::path vert("C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\grid.vert.spv");
-    ShaderMaterial material;
-    ShaderMaterial::EError err = material.LoadShaders(this, frag, vert);
-    HUSH_ASSERT(err == ShaderMaterial::EError::None, "Failed to load shader material: {}", magic_enum::enum_name(err));
     std::string structurePath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\sponza.glb";
     using MeshVector_t = std::vector<std::shared_ptr<VulkanMeshNode>>;
     Result<MeshVector_t, VulkanLoader::EError> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath);
@@ -757,6 +752,22 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
 	constexpr std::string_view fragmentShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\mesh.frag.spv";
     constexpr std::string_view vertexShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\mesh.vert.spv";
     this->m_metalRoughMaterial.BuildPipelines(this, fragmentShaderPath, vertexShaderPath);
+
+	//Just as a test, let's bind some shaders!
+	std::filesystem::path frag("C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\grid.frag.spv");
+	std::filesystem::path vert("C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\grid.vert.spv");
+    
+    auto gridMaterial = std::make_shared<ShaderMaterial>();
+	ShaderMaterial::EError err = gridMaterial->LoadShaders(this, frag, vert);
+    this->m_gridEffect = VulkanFullScreenPass(this, gridMaterial);
+
+    gridMaterial->SetProperty("view", this->m_editorCamera.GetViewMatrix());
+    gridMaterial->SetProperty("proj", this->m_editorCamera.GetProjectionMatrix());
+    gridMaterial->SetProperty("pos", this->m_editorCamera.GetPosition());
+
+    gridMaterial->GenerateMaterialInstance(&this->m_globalDescriptorAllocator);
+
+	HUSH_ASSERT(err == ShaderMaterial::EError::None, "Failed to load shader material: {}", magic_enum::enum_name(err));
 }
 
 void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
@@ -1020,6 +1031,8 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
     int32_t drawCalls = 0;
 
+    this->DrawGrid(cmd, globalDescriptor);
+
 	for (const VkRenderObject& draw : this->m_mainDrawContext) {
 
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
@@ -1056,6 +1069,11 @@ void Hush::VulkanRenderer::DrawBackground(VkCommandBuffer cmd) noexcept
     uint32_t roundedWidth = static_cast<uint32_t>(std::ceil(this->m_width / 16.0));
     uint32_t roundedHeight = static_cast<uint32_t>(std::ceil(this->m_height / 16.0));
     vkCmdDispatch(cmd, roundedWidth, roundedHeight, 1);
+}
+
+void Hush::VulkanRenderer::DrawGrid(VkCommandBuffer cmd, VkDescriptorSet globalDescriptor)
+{
+    this->m_gridEffect.RecordCommands(cmd, globalDescriptor);
 }
 
 void Hush::VulkanRenderer::DrawUI(VkCommandBuffer cmd, VkImageView imageView)

@@ -10,6 +10,7 @@ add_library(HushRendering OBJECT
         src/Vulkan/VulkanLoader.cpp
         src/Vulkan/VkDescriptors.cpp
         src/Vulkan/VulkanSwapchain.cpp
+        src/Vulkan/VulkanFullScreenPass.cpp
         src/Shared/Camera.cpp
         src/Shared/ImageTexture.cpp
         src/Shared/EditorCamera.cpp

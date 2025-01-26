@@ -38,4 +38,9 @@
 HUSH_ASSERT(result.has_value(), "{} error: {}", message, magic_enum::enum_name(result.error()))
 
 
+#define HUSH_COND_FAIL_V(condition, retval) \
+    if (!(condition)) {\
+        return retval;\
+    }
+
 #define HUSH_STATIC_ASSERT(condition, ...) static_assert(condition, #__VA_ARGS__)

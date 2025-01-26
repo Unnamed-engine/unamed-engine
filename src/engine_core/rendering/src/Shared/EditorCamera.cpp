@@ -69,6 +69,11 @@ glm::mat4 Hush::EditorCamera::GetOrientationMatrix() const noexcept
 	return glm::toMat4(yawRotation) * glm::toMat4(pitchRotation);
 }
 
+glm::vec3 Hush::EditorCamera::GetPosition() const noexcept
+{
+	return this->m_position;
+}
+
 glm::mat4 Hush::EditorCamera::GetViewMatrix() const noexcept
 {
 	glm::mat4 cameraTranslation = glm::translate(glm::mat4(1.f), this->m_position);

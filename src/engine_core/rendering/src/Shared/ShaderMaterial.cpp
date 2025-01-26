@@ -85,29 +85,44 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 	return EError::None;
 }
 
-void Hush::ShaderMaterial::GenerateMaterialInstance(OpaqueDescriptorAllocator* descriptorAllocator, void* outMaterialInstance)
+void Hush::ShaderMaterial::GenerateMaterialInstance(OpaqueDescriptorAllocator* descriptorAllocator)
 {
 	VulkanRenderer* rendererImpl = static_cast<VulkanRenderer*>(this->m_renderer);
 	VkDevice device = rendererImpl->GetVulkanDevice();
-
-	Hush::VkMaterialInstance matData;
-	matData.passType = EMaterialPass::MainColor;
+	this->m_internalMaterial = std::make_unique<GraphicsApiMaterialInstance>();
+	this->m_internalMaterial->passType = EMaterialPass::MainColor;
 	
 	//Make sure that we can cast this stuff
 	auto* realDescriptorAllocator = reinterpret_cast<DescriptorAllocatorGrowable*>(descriptorAllocator);
 
-
 	//Not initialized material layout here from VkLoader
-	matData.materialSet = realDescriptorAllocator->Allocate(device, this->m_materialData->descriptorLayout);
+	this->m_internalMaterial->materialSet = realDescriptorAllocator->Allocate(device, this->m_materialData->descriptorLayout);
+	VulkanAllocatedBuffer buffer(
+		static_cast<uint32_t>(this->m_uniformBufferData.size()),
+		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		VMA_MEMORY_USAGE_CPU_TO_GPU, 
+		rendererImpl->GetVmaAllocator()
+	);
 
-	// This should be where I write to the shader the stuff I want, but I wouldn't know that until I have the shader
-	//this->m_materialPipeline->writer.Clear();
-	//this->m_materialPipeline->writer.WriteBuffer(0, resources.dataBuffer, sizeof(MaterialConstants), resources.dataBufferOffset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	// Copy data to GPU
+	memcpy(buffer.GetAllocationInfo().pMappedData, this->m_uniformBufferData.data(), this->m_uniformBufferData.size());
+	
+	this->m_materialData->writer.Clear();
+	constexpr size_t offset = 0;
+	this->m_materialData->writer.WriteBuffer(0, buffer.GetBuffer(), this->m_uniformBufferData.size(), offset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 	//this->m_materialPipeline->writer.WriteImage(1, resources.colorImage.imageView, resources.colorSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 	//this->m_materialPipeline->writer.WriteImage(2, resources.metalRoughImage.imageView, resources.metalRoughSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+	this->m_materialData->writer.UpdateSet(device, this->m_internalMaterial->materialSet);
+}
 
-	//writer.UpdateSet(device, matData.materialSet);
-	memcpy(outMaterialInstance, &matData, sizeof(Hush::VkMaterialInstance));
+Hush::OpaqueMaterialData* Hush::ShaderMaterial::GetMaterialData()
+{
+	return this->m_materialData;
+}
+
+const Hush::GraphicsApiMaterialInstance& Hush::ShaderMaterial::GetInternalMaterial() const
+{
+	return *this->m_internalMaterial.get();
 }
 
 Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hush::ShaderMaterial::ReflectShader(std::span<uint32_t> shaderBinary)
@@ -136,13 +151,13 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 	bindings.reserve(pushConstantsCount + inputVarsCount + descriptorCount);
 	for (const SpvReflectBlockVariable* pushConstant : pushConstants) {
 		ShaderBindings binding;
-		binding.name = pushConstant->name;
 		binding.bindingIndex = 0;  // Push constants are not bound to a specific index
 		binding.size = pushConstant->size;
 		binding.offset = pushConstant->offset;
 		binding.stageFlags = reflectionModule.shader_stage;
 		binding.type = ShaderBindings::EBindingType::PushConstant;
 		bindings.emplace_back(binding);
+		this->m_bindingsByName.insert_or_assign(pushConstant->name, binding);
 	}
 
 	std::vector<SpvReflectInterfaceVariable*> inputVars(inputVarsCount);
@@ -153,7 +168,6 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 	for (const SpvReflectInterfaceVariable* inputVar : inputVars) {
 		ShaderBindings binding;
 		binding.type = ShaderBindings::EBindingType::InputVariable;
-		binding.name = inputVar->name;
 		binding.bindingIndex = inputVar->location;
 		size_t calculatedSize = this->CalculateTypeSize(inputVar->type_description);
 		binding.size = static_cast<uint32_t>(calculatedSize);
@@ -161,6 +175,7 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 		binding.stageFlags = reflectionModule.shader_stage;
 		inputVarsByteLength += calculatedSize;
 		bindings.emplace_back(binding);
+		this->m_bindingsByName.insert_or_assign(inputVar->name, binding);
 	}
 	this->m_shaderInputData.resize(inputVarsByteLength);
 	std::vector<SpvReflectDescriptorBinding*> descriptorBindings(descriptorCount);
@@ -170,7 +185,6 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 	for (const SpvReflectDescriptorBinding* descriptor : descriptorBindings) {
 
 		ShaderBindings binding;
-		binding.name = descriptor->name;
 		binding.bindingIndex = descriptor->binding;
 		binding.size = descriptor->block.size;
 		binding.offset = descriptor->block.offset;
@@ -196,6 +210,7 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 		}
 		this->m_uniformBufferData.resize(uniformBuffersSize);
 		bindings.emplace_back(binding);
+		this->m_bindingsByName.insert_or_assign(descriptor->name, binding);
 		if (descriptor->descriptor_type != SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
 			continue;
 		}
@@ -206,15 +221,15 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 
 			// Create a new ShaderBindings entry for each member
 			Hush::ShaderBindings memberBinding;
-			memberBinding.name = member.name;
 			memberBinding.bindingIndex = descriptor->binding;  // Same binding index as the block
 			memberBinding.setIndex = descriptor->set;
-			memberBinding.size = member.size;
+			memberBinding.size = member.padded_size;
 			memberBinding.offset = member.offset;  // Offset within the uniform block
 			memberBinding.type = ShaderBindings::EBindingType::UniformBufferMember;  // Add a type for UBO members
 			memberBinding.stageFlags = descriptor->spirv_id;
 
 			bindings.emplace_back(memberBinding);
+			this->m_bindingsByName.insert_or_assign(member.name, memberBinding);
 		}
 
 
@@ -268,8 +283,6 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::BindShader(const std::vector<
 	std::vector<VkPushConstantRange> pushConstants;
 	DescriptorLayoutBuilder layoutBuilder{};
 
-	size_t uniformBufferSize = 0;
-
 	for (const ShaderBindings& b : vertBindings) {
 		//TODO: Refactor this as a function
 		switch (b.type)
@@ -284,7 +297,6 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::BindShader(const std::vector<
 
 		case ShaderBindings::EBindingType::UniformBuffer:
 			//For uniform buffers, we can add stuff to allocate a VK memory buffer
-			uniformBufferSize += b.size;
 			//NOTE: Yes, the lack of a break here is intentional
 		case ShaderBindings::EBindingType::CombinedImageSampler:
 			//Add bindings for applicable types
@@ -305,7 +317,6 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::BindShader(const std::vector<
 
 		case ShaderBindings::EBindingType::UniformBuffer:
 			//For uniform buffers, we can add stuff to allocate a VK memory buffer
-			uniformBufferSize += b.size;
 			//NOTE: Yes, the lack of a break here is intentional
 		case ShaderBindings::EBindingType::CombinedImageSampler:
 			//Add bindings for applicable types
@@ -380,3 +391,14 @@ size_t Hush::ShaderMaterial::CalculateTypeSize(const SpvReflectTypeDescription* 
 
 	return cumSize; // Handle unsupported types
 }
+
+const Hush::ShaderBindings& Hush::ShaderMaterial::FindBinding(const std::string_view& name)
+{
+	return this->m_bindingsByName.at(name.data());
+}
+
+void Hush::ShaderMaterial::UpdateMaterialData()
+{
+
+}
+

@@ -1,15 +1,21 @@
 #pragma once
 
 ///@brief Definitions and all that just to make everything type safe
-class Bitwise {
-public:
-	template<class Base_T, class Flag_T>
-	static constexpr inline bool HasFlag(Base_T base, Flag_T flag) {
-		return (base & flag) == flag; //And just pray this compiles every time lol
+namespace Hush::Bitwise {
+	template<class T, class U>
+	concept BitComparable = requires(T a, U b) {
+		a & b;
+	};
+
+	template<class T, class U>
+	requires BitComparable<T, U>
+	constexpr inline bool HasFlag(T base, U flag) {
+		return (base & flag) == flag;
 	}
 
-	template<class Base_T, class Flag_T>
-	static constexpr inline bool HasCompositeFlag(Base_T base, Flag_T compositeFlag) {
-		return (base & compositeFlag) != 0; //And just pray this compiles every time lol
+	template<class T, class U>
+	requires BitComparable<T, U>
+	constexpr inline bool HasCompositeFlag(T base, U compositeFlag) {
+		return (base & compositeFlag) != 0;
 	}
 };
