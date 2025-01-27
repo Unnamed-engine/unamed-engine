@@ -68,7 +68,7 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 	pipelineBuilder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
 	pipelineBuilder.SetMultiSamplingNone();
 	pipelineBuilder.DisableBlending();
-	pipelineBuilder.EnableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
+	pipelineBuilder.DisableDepthTest();
 
 	//render format
 	pipelineBuilder.SetColorAttachmentFormat(rendererImpl->GetDrawImage().imageFormat);

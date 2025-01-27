@@ -190,7 +190,7 @@ void Hush::VulkanRenderer::Draw(float delta)
     VkImage currentImage = this->m_swapchain.GetImages().at(swapchainImageIndex);
 
     this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    this->DrawBackground(cmd);
+    //this->DrawBackground(cmd);
     //Transition
 	this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	this->TransitionImage(cmd, this->m_depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);

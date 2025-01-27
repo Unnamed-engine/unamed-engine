@@ -27,8 +27,7 @@ void Hush::VulkanFullScreenPass::RecordCommands(VkCommandBuffer cmd, VkDescripto
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, matData->pipeline.layout, 0, 1, &globalDescriptorSet, 0, nullptr);
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, matData->pipeline.layout, 1, 1, &descSet, 0, nullptr);
-
 	// Draw full-screen triangle
-	vkCmdDraw(cmd, 3, 1, 0, 0); // 3 vertices = full-screen triangle
+	vkCmdDraw(cmd, 4, 1, 0, 0); // 3 vertices = full-screen triangle
 }
 
