@@ -14,7 +14,9 @@ namespace Hush {
 		VulkanFullScreenPass(VulkanRenderer* renderer, std::shared_ptr<ShaderMaterial> material);
 
 		void RecordCommands(VkCommandBuffer cmd, VkDescriptorSet globalDescriptorSet);
-	
+		
+		ShaderMaterial* GetMaterial();
+
 	private:
 		VulkanRenderer* m_renderer;
 		std::shared_ptr<ShaderMaterial> m_materialInstance;

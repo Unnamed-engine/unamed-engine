@@ -104,6 +104,10 @@ void Hush::ShaderMaterial::GenerateMaterialInstance(OpaqueDescriptorAllocator* d
 		rendererImpl->GetVmaAllocator()
 	);
 
+	vmaMapMemory(rendererImpl->GetVmaAllocator(),
+		buffer.GetAllocation(),
+		&this->m_uniformBufferMappedData);
+
 	// Copy data to GPU
 	memcpy(buffer.GetAllocationInfo().pMappedData, this->m_uniformBufferData.data(), this->m_uniformBufferData.size());
 	
@@ -395,10 +399,5 @@ size_t Hush::ShaderMaterial::CalculateTypeSize(const SpvReflectTypeDescription* 
 const Hush::ShaderBindings& Hush::ShaderMaterial::FindBinding(const std::string_view& name)
 {
 	return this->m_bindingsByName.at(name.data());
-}
-
-void Hush::ShaderMaterial::UpdateMaterialData()
-{
-
 }
 

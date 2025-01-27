@@ -13,6 +13,7 @@ namespace Hush {
 #if defined(HUSH_VULKAN_IMPL)
 	struct DescriptorAllocatorGrowable;
 	struct VkMaterialInstance;
+	class VulkanAllocatedBuffer;
 	using GraphicsApiMaterialInstance = VkMaterialInstance;
 	using OpaqueDescriptorAllocator = DescriptorAllocatorGrowable;
 #endif
@@ -68,8 +69,7 @@ namespace Hush {
 			// Offset the pointer by the binding's offset
 			std::byte* dataStartingPoint = vecBuffer.data() + binding.offset;
 			// Memcpy the data with sizeof(T)
-			memcpy(dataStartingPoint, &value, sizeof(T));
-			this->UpdateMaterialData();
+			memcpy(dataStartingPoint, &value, sizeof(T)); 
 		}
 
 		template<class T>
@@ -87,6 +87,8 @@ namespace Hush {
 			}
 			std::byte* dataStartingPoint = vecBuffer.data() + binding.offset;
 			
+			//Important to reinterpret cast using T, because some stuff might be 16byte-aligned and we want to only get the bytes
+			//That correspond to the actual value type
 			return *reinterpret_cast<T*>(dataStartingPoint);
 		}
 
@@ -105,8 +107,6 @@ namespace Hush {
 
 		const ShaderBindings& FindBinding(const std::string_view& name);
 
-		void UpdateMaterialData();
-
 		IRenderer* m_renderer;
 		OpaqueMaterialData* m_materialData;
 
@@ -120,5 +120,7 @@ namespace Hush {
 		std::unordered_map<std::string, ShaderBindings> m_bindingsByName;
 
 		std::unique_ptr<GraphicsApiMaterialInstance> m_internalMaterial;
+		
+		void* m_uniformBufferMappedData;
 	};
 }

@@ -240,7 +240,6 @@ void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
 
 void Hush::VulkanRenderer::UpdateSceneObjects(float delta)
 {
-
     this->m_editorCamera.OnUpdate(delta);
 	this->m_mainDrawContext.clear();
 	// Test stuff just to show that it works... to be refactored into a more dynamic approach
@@ -760,11 +759,6 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
     auto gridMaterial = std::make_shared<ShaderMaterial>();
 	ShaderMaterial::EError err = gridMaterial->LoadShaders(this, frag, vert);
     this->m_gridEffect = VulkanFullScreenPass(this, gridMaterial);
-
-    gridMaterial->SetProperty("view", this->m_editorCamera.GetViewMatrix());
-    gridMaterial->SetProperty("proj", this->m_editorCamera.GetProjectionMatrix());
-    gridMaterial->SetProperty("pos", this->m_editorCamera.GetPosition());
-
     gridMaterial->GenerateMaterialInstance(&this->m_globalDescriptorAllocator);
 
 	HUSH_ASSERT(err == ShaderMaterial::EError::None, "Failed to load shader material: {}", magic_enum::enum_name(err));
@@ -1073,6 +1067,12 @@ void Hush::VulkanRenderer::DrawBackground(VkCommandBuffer cmd) noexcept
 
 void Hush::VulkanRenderer::DrawGrid(VkCommandBuffer cmd, VkDescriptorSet globalDescriptor)
 {
+    ShaderMaterial* shaderMat = this->m_gridEffect.GetMaterial();
+	
+    shaderMat->SetProperty("view", this->m_editorCamera.GetViewMatrix());
+	shaderMat->SetProperty("proj", this->m_editorCamera.GetProjectionMatrix());
+	shaderMat->SetProperty("pos", this->m_editorCamera.GetPosition());
+
     this->m_gridEffect.RecordCommands(cmd, globalDescriptor);
 }
 
