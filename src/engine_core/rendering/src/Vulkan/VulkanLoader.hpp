@@ -19,7 +19,6 @@
 #include "Shared/ImageTexture.hpp"
 #include "VulkanMeshNode.hpp"
 
-
 namespace Hush {
 
 	struct GeoSurface {
