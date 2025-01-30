@@ -83,20 +83,14 @@ Hush::VulkanRenderer::VulkanRenderer(void *windowContext)
 Hush::VulkanRenderer::VulkanRenderer(VulkanRenderer &&rhs) noexcept
     : IRenderer(nullptr), m_windowContext(rhs.m_windowContext), m_vulkanInstance(rhs.m_vulkanInstance),
       m_vulkanPhysicalDevice(rhs.m_vulkanPhysicalDevice), m_debugMessenger(rhs.m_debugMessenger),
-      m_device(rhs.m_device), m_surface(rhs.m_surface), m_swapChain(rhs.m_swapChain),
-      m_swapchainImageFormat(rhs.m_swapchainImageFormat), m_swapchainImages(std::move(rhs.m_swapchainImages)),
-      m_swapchainImageViews(std::move(rhs.m_swapchainImageViews)), m_swapChainExtent(rhs.m_swapChainExtent)
+      m_device(rhs.m_device), m_surface(rhs.m_surface), m_swapchain(rhs.m_swapchain)
 {
     rhs.m_vulkanInstance = nullptr;
     rhs.m_vulkanPhysicalDevice = nullptr;
     rhs.m_debugMessenger = nullptr;
     rhs.m_device = nullptr;
     rhs.m_surface = nullptr;
-    rhs.m_swapChain = nullptr;
-    rhs.m_swapchainImageFormat = VK_FORMAT_UNDEFINED;
-    rhs.m_swapchainImages.clear();
-    rhs.m_swapchainImageViews.clear();
-    rhs.m_swapChainExtent = VkExtent2D{};
+    rhs.m_swapchain = {};
 }
 
 Hush::VulkanRenderer &Hush::VulkanRenderer::operator=(VulkanRenderer &&rhs) noexcept
@@ -109,22 +103,14 @@ Hush::VulkanRenderer &Hush::VulkanRenderer::operator=(VulkanRenderer &&rhs) noex
         this->m_debugMessenger = rhs.m_debugMessenger;
         this->m_device = rhs.m_device;
         this->m_surface = rhs.m_surface;
-        this->m_swapChain = rhs.m_swapChain;
-        this->m_swapchainImageFormat = rhs.m_swapchainImageFormat;
-        this->m_swapchainImages = std::move(rhs.m_swapchainImages);
-        this->m_swapchainImageViews = std::move(rhs.m_swapchainImageViews);
-        this->m_swapChainExtent = rhs.m_swapChainExtent;
-
+        this->m_swapchain = rhs.m_swapchain;
+        
         rhs.m_vulkanInstance = nullptr;
         rhs.m_vulkanPhysicalDevice = nullptr;
         rhs.m_debugMessenger = nullptr;
         rhs.m_device = nullptr;
         rhs.m_surface = nullptr;
-        rhs.m_swapChain = nullptr;
-        rhs.m_swapchainImageFormat = VK_FORMAT_UNDEFINED;
-        rhs.m_swapchainImages.clear();
-        rhs.m_swapchainImageViews.clear();
-        rhs.m_swapChainExtent = VkExtent2D{};
+        rhs.m_swapchain = {};
     }
 
     return *this;
@@ -138,97 +124,9 @@ Hush::VulkanRenderer::~VulkanRenderer()
 // Called on resize and window init
 void Hush::VulkanRenderer::CreateSwapChain(uint32_t width, uint32_t height)
 {
-    vkb::SwapchainBuilder swapchainBuilder{m_vulkanPhysicalDevice, m_device, m_surface};
-
-    //FIXME: Color info
-    this->m_swapchainImageFormat = VK_FORMAT_B8G8R8A8_SRGB;
-
-    auto vkSurfaceFormat = VkSurfaceFormatKHR{};
-    vkSurfaceFormat.format = this->m_swapchainImageFormat;
-    vkSurfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-
-    vkb::Swapchain vkbSwapChain = swapchainBuilder.set_desired_format(vkSurfaceFormat)
-                                      .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-                                      .set_desired_extent(width, height)
-                                      .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-                                      .build()
-                                      .value();
-
     this->m_width = width;
     this->m_height = height;
-    this->m_swapChainExtent = vkbSwapChain.extent;
-    this->m_swapChain = vkbSwapChain.swapchain;
-    this->m_swapchainImages = vkbSwapChain.get_images().value();
-    this->m_swapchainImageViews = vkbSwapChain.get_image_views().value();
-    //> Init_Swapchain
-    // draw image size will match the window
-    VkExtent3D drawImageExtent = {this->m_width, this->m_height, 1};
-
-    // hardcoding the draw format to 32 bit float
-    this->m_drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-    this->m_drawImage.imageExtent = drawImageExtent;
-
-    VkImageUsageFlags drawImageUsages{};
-    drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
-    drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-    VkImageCreateInfo rimgInfo =
-        VkUtilsFactory::CreateImageCreateInfo(this->m_drawImage.imageFormat, drawImageUsages, drawImageExtent);
-
-    // for the draw image, we want to allocate it from gpu local memory
-    VmaAllocationCreateInfo rimgAllocInfo = {};
-    rimgAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-    rimgAllocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    // allocate and create the image
-    vmaCreateImage(this->m_allocator, &rimgInfo, &rimgAllocInfo, &this->m_drawImage.image,
-                   &this->m_drawImage.allocation, nullptr);
-
-    // build a image-view for the draw image to use for rendering
-    VkImageViewCreateInfo rViewInfo = VkUtilsFactory::CreateImageViewCreateInfo(
-        this->m_drawImage.imageFormat, this->m_drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
-
-    HUSH_VK_ASSERT(vkCreateImageView(this->m_device, &rViewInfo, nullptr, &this->m_drawImage.imageView),
-                   "Failed to create image view");
-
-	this->m_depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
-	this->m_depthImage.imageExtent = drawImageExtent;
-	VkImageUsageFlags depthImageUsages{};
-	depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-	VkImageCreateInfo depthImgInfo = VkUtilsFactory::CreateImageCreateInfo(m_depthImage.imageFormat, depthImageUsages, drawImageExtent);
-
-	//allocate and create the image
-	vmaCreateImage(
-        this->m_allocator,
-        &depthImgInfo,
-        &rimgAllocInfo,
-        &this->m_depthImage.image,
-        &this->m_depthImage.allocation,
-        nullptr
-    );
-
-	//build a image-view for the draw image to use for rendering
-	VkImageViewCreateInfo dview_info = VkUtilsFactory::CreateImageViewCreateInfo(
-        this->m_depthImage.imageFormat,
-        this->m_depthImage.image, 
-        VK_IMAGE_ASPECT_DEPTH_BIT
-    );
-
-    VkResult rc = vkCreateImageView(this->m_device, &dview_info, nullptr, &this->m_depthImage.imageView);
-	HUSH_VK_ASSERT(rc, "Failed to create depth image view!");
-
-    // add to deletion queues
-    this->m_mainDeletionQueue.PushFunction([=]() {
-		vkDestroyImageView(m_device, m_depthImage.imageView, nullptr);
-		vmaDestroyImage(m_allocator, m_depthImage.image, m_depthImage.allocation);
-
-        vkDestroyImageView(m_device, m_drawImage.imageView, nullptr);
-        vmaDestroyImage(m_allocator, m_drawImage.image, m_drawImage.allocation);
-    });
-    //< Init_Swapchain
+    this->m_swapchain.Recreate(width, height, this);
 }
 
 void Hush::VulkanRenderer::InitializeCommands() noexcept
@@ -288,7 +186,7 @@ void Hush::VulkanRenderer::Draw(float delta)
         return;
     }
 
-    VkImage currentImage = this->m_swapchainImages.at(swapchainImageIndex);
+    VkImage currentImage = this->m_swapchain.GetImages().at(swapchainImageIndex);
 
     this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     this->DrawBackground(cmd);
@@ -302,58 +200,23 @@ void Hush::VulkanRenderer::Draw(float delta)
 	this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 	this->TransitionImage(cmd, currentImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-    this->CopyImageToImage(cmd, this->m_drawImage.image, currentImage, { this->m_width, this->m_height }, this->m_swapChainExtent);
+    this->CopyImageToImage(cmd, this->m_drawImage.image, currentImage, { this->m_width, this->m_height }, this->m_swapchain.GetExtent());
     this->TransitionImage(cmd, currentImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     
     //UI
-    this->DrawUI(cmd, this->m_swapchainImageViews[swapchainImageIndex]);
+    this->DrawUI(cmd, this->m_swapchain.GetImageViews()[swapchainImageIndex]);
     // set swapchain image layout to Present so we can draw it
     this->TransitionImage(cmd, currentImage, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     // finalize the command buffer (we can no longer add commands, but it can now be executed)
     HUSH_VK_ASSERT(vkEndCommandBuffer(cmd), "End command buffer failed!");
-    //< imgui_draw
 
-    // prepare the submission to the queue.
-    // we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
-    // we will signal the _renderSemaphore, to signal that rendering has finished
+    this->m_swapchain.Present(cmd, &swapchainImageIndex, &this->m_resizeRequested);
 
-    VkCommandBufferSubmitInfo cmdinfo = VkUtilsFactory::CreateCommandBufferSubmitInfo(cmd);
-
-    VkSemaphoreSubmitInfo waitInfo = VkUtilsFactory::CreateSemaphoreSubmitInfo(
-        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, currentFrame.swapchainSemaphore);
-
-    VkSemaphoreSubmitInfo signalInfo =
-        VkUtilsFactory::CreateSemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, currentFrame.renderSemaphore);
-
-    VkSubmitInfo2 submit = VkUtilsFactory::SubmitInfo(&cmdinfo, &signalInfo, &waitInfo);
-
-    // submit command buffer to the queue and execute it.
-    //  _renderFence will now block until the graphic commands finish execution
-    HUSH_VK_ASSERT(vkQueueSubmit2(this->m_graphicsQueue, 1, &submit, currentFrame.renderFence), "Queue submit failed!");
-
-    // prepare present
-    //  this will put the image we just rendered to into the visible window.
-    //  we want to wait on the _renderSemaphore for that,
-    //  as its necessary that drawing commands have finished before the image is displayed to the user
-    VkPresentInfoKHR presentInfo = VkUtilsFactory::CreatePresentInfo();
-
-    presentInfo.pSwapchains = &this->m_swapChain;
-    presentInfo.swapchainCount = 1;
-
-    presentInfo.pWaitSemaphores = &currentFrame.renderSemaphore;
-    presentInfo.waitSemaphoreCount = 1;
-
-    presentInfo.pImageIndices = &swapchainImageIndex;
-
-    VkResult presentResult = vkQueuePresentKHR(this->m_graphicsQueue, &presentInfo);
-
-    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR) {
-        this->m_resizeRequested = true;
+    if (this->m_resizeRequested) {
+        //Skip frame
         return;
     }
-
-    HUSH_VK_ASSERT(presentResult, "Presenting failed!");
 
     // increase the number of frames drawn
     this->m_frameNumber++;
@@ -362,6 +225,11 @@ void Hush::VulkanRenderer::Draw(float delta)
 void Hush::VulkanRenderer::NewUIFrame() const noexcept
 {
     this->m_uiForwarder->NewFrame();
+}
+
+void Hush::VulkanRenderer::EndUIFrame() const noexcept
+{
+    this->m_uiForwarder->EndFrame();
 }
 
 void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
@@ -442,7 +310,7 @@ void Hush::VulkanRenderer::Dispose()
             vkDestroySemaphore(this->m_device, this->m_frames.at(i).renderSemaphore, nullptr);
             vkDestroySemaphore(this->m_device, this->m_frames.at(i).swapchainSemaphore, nullptr);
         }
-        this->DestroySwapChain();
+        this->m_swapchain.Destroy();
         vkDestroyDevice(this->m_device, nullptr);
     }
 
@@ -513,7 +381,17 @@ const AllocatedImage& Hush::VulkanRenderer::GetDrawImage() const noexcept
     return this->m_drawImage;
 }
 
+AllocatedImage& Hush::VulkanRenderer::GetDrawImage() noexcept
+{
+    return this->m_drawImage;
+}
+
 const AllocatedImage& Hush::VulkanRenderer::GetDepthImage() const noexcept
+{
+    return this->m_depthImage;
+}
+
+AllocatedImage& Hush::VulkanRenderer::GetDepthImage() noexcept
 {
     return this->m_depthImage;
 }
@@ -620,11 +498,6 @@ void Hush::VulkanRenderer::Configure(vkb::Instance vkbInstance)
     LogFormat(ELogLevel::Debug, "API version: {}", properties.apiVersion);
 }
 
-VkFormat *Hush::VulkanRenderer::GetSwapchainImageFormat() noexcept
-{
-    return &this->m_swapchainImageFormat;
-}
-
 void Hush::VulkanRenderer::CreateSyncObjects()
 {
     // Create our sync objects and see if we were succesful
@@ -656,20 +529,14 @@ void Hush::VulkanRenderer::CreateSyncObjects()
     }
 }
 
-void Hush::VulkanRenderer::DestroySwapChain()
-{
-    vkDestroySwapchainKHR(this->m_device, this->m_swapChain, nullptr);
-
-    for (auto &imageView : this->m_swapchainImageViews)
-    {
-        vkDestroyImageView(this->m_device, imageView, nullptr);
-    }
-    this->m_swapchainImageViews.clear();
-}
-
 void *Hush::VulkanRenderer::GetWindowContext() const noexcept
 {
     return this->m_windowContext;
+}
+
+Hush::VulkanSwapchain& Hush::VulkanRenderer::GetSwapchain()
+{
+    return this->m_swapchain;
 }
 
 VkSubmitInfo2 Hush::VulkanRenderer::SubmitInfo(VkCommandBufferSubmitInfo *cmd,
@@ -879,7 +746,7 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
     this->InitMeshPipeline();
 
 	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.frag.spv";
-	constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.vert.spv";
+    constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.vert.spv";
     this->m_metalRoughMaterial.BuildPipelines(this, fragmentShaderPath, vertexShaderPath);
 }
 
@@ -893,7 +760,7 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
 
     // layout code
     VkShaderModule computeDrawShader = nullptr;
-    constexpr std::string_view shaderPath = "Y:/Programming/C++/Hush-Engine/res/gradient_color.comp.spv";
+    constexpr std::string_view shaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\gradient_color.comp.spv";
     if (!VulkanHelper::LoadShaderModule(shaderPath, this->m_device, &computeDrawShader))
     {
         LogError("Error when building the compute shader");
@@ -937,8 +804,8 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
 
 void Hush::VulkanRenderer::InitMeshPipeline() noexcept
 {
-	constexpr std::string_view fragmentShaderPath = "Y:/Programming/C++/Hush-Engine/res/tex_image.frag.spv";
-	constexpr std::string_view vertexShaderPath = "Y:/Programming/C++/Hush-Engine/res/colored_triangle_mesh.vert.spv";
+	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\tex_image.frag.spv";
+    constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\colored_triangle_mesh.vert.spv";
 
 	VkShaderModule triangleFragShader;
 	if (!VulkanHelper::LoadShaderModule(fragmentShaderPath, this->m_device, &triangleFragShader)) {
@@ -1185,7 +1052,7 @@ void Hush::VulkanRenderer::DrawBackground(VkCommandBuffer cmd) noexcept
 void Hush::VulkanRenderer::DrawUI(VkCommandBuffer cmd, VkImageView imageView)
 {
 	VkRenderingAttachmentInfo colorAttachment = VkUtilsFactory::CreateAttachmentInfoWithLayout(imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	VkRenderingInfo renderInfo = VkUtilsFactory::CreateRenderingInfo(this->m_swapChainExtent, &colorAttachment, nullptr);
+	VkRenderingInfo renderInfo = VkUtilsFactory::CreateRenderingInfo(this->m_swapchain.GetExtent(), &colorAttachment, nullptr);
 
 	vkCmdBeginRendering(cmd, &renderInfo);
 	auto* uiImpl = dynamic_cast<VulkanImGuiForwarder*>(this->m_uiForwarder.get());
@@ -1206,13 +1073,10 @@ VkCommandBuffer Hush::VulkanRenderer::PrepareCommandBuffer(FrameData& currentFra
 	HUSH_VK_ASSERT(rc, "Fence wait failed!");
 
     // Request an image from the swapchain
-    rc = vkAcquireNextImageKHR(this->m_device, this->m_swapChain, VK_OPERATION_TIMEOUT_NS,
-        currentFrame.swapchainSemaphore, nullptr, swapchainImageIndex);
-	
+    *swapchainImageIndex = this->m_swapchain.AcquireNextImage(currentFrame.swapchainSemaphore, &this->m_resizeRequested);
     //Handle resize request, pass this back to the caller to check
-    if (rc == VK_ERROR_OUT_OF_DATE_KHR) {
-		//Resized
-		this->m_resizeRequested = true;
+    if (this->m_resizeRequested) {
+		//Resized the surface, so, skip frame
 		return nullptr;
 	}
 	HUSH_VK_ASSERT(rc, "Image request from the swapchain failed!");
@@ -1238,14 +1102,10 @@ VkCommandBuffer Hush::VulkanRenderer::PrepareCommandBuffer(FrameData& currentFra
 
 void Hush::VulkanRenderer::ResizeSwapchain()
 {
-    this->m_uiForwarder->EndFrame();
-    vkDeviceWaitIdle(this->m_device);
-    vkQueueWaitIdle(this->m_graphicsQueue);
-    this->DestroySwapChain();
     //Defer this to the WindowRenderer interface instead of SDL
     int32_t width, height;
     SDL_GetWindowSize(static_cast<SDL_Window*>(this->m_windowContext), &width, &height);
-    this->CreateSwapChain(width, height);
+    this->m_swapchain.Resize(width, height);
     this->m_resizeRequested = false;
 }
 
@@ -1283,6 +1143,16 @@ AllocatedImage Hush::VulkanRenderer::CreateImage(VkExtent3D size, VkFormat forma
 	HUSH_VK_ASSERT(vkCreateImageView(this->m_device, &viewInfo, nullptr, &newImage.imageView), "Failed to create image view!");
 
 	return newImage;
+}
+
+VkSurfaceKHR Hush::VulkanRenderer::GetSurface() noexcept
+{
+    return this->m_surface;
+}
+
+VulkanDeletionQueue Hush::VulkanRenderer::GetDeletionQueue() noexcept
+{
+    return this->m_mainDeletionQueue;
 }
 
 void Hush::VulkanRenderer::DestroyImage(const AllocatedImage& img)
@@ -1375,5 +1245,4 @@ Hush::GPUMeshBuffers Hush::VulkanRenderer::UploadMesh(const std::vector<uint32_t
 	staging.Dispose(this->m_allocator);
 
 	return newSurface;
-
 }
