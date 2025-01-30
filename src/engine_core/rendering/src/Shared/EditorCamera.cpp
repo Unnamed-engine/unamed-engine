@@ -49,12 +49,9 @@ void Hush::EditorCamera::OnUpdate(float delta)
 		constexpr float maxSpeed = 5000.0f;
 		this->m_blendValue = MathUtils::Clamp(this->m_blendValue + delta, 0.0f, 1.0f);
 		float speed = maxSpeed * ApplyAccelerationCurve(this->m_blendValue);
-		LogFormat(ELogLevel::Info, "Blend: {}, Speed: {}", this->m_blendValue, speed);
 		this->m_position += glm::normalize(cameraDir) * speed * delta;
 	}
 	else {
-		constexpr float initialCamSpeed = 100.0f;
-		this->m_speed = initialCamSpeed;
 		this->m_blendValue = 0.0f;
 	}
 	if (!InputManager::GetMouseButtonPressed(EMouseButton::Right)) {
