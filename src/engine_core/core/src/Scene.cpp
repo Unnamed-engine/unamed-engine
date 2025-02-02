@@ -6,7 +6,18 @@
 
 #include "Scene.hpp"
 
-// TODO: implement parallel for for systems.
+#define FLECS_NO_CPP
+#include <flecs.h>
+
+constexpr std::size_t DEFAULT_SYSTEMS_CAPACITY = 128;
+
+Hush::Scene::Scene(Engine *engine)
+    : m_engine(engine),
+      m_world(ecs_init())
+{
+    // Reserve the buckets
+    m_userSystems.reserve(DEFAULT_SYSTEMS_CAPACITY);
+}
 
 Hush::Scene::~Scene() = default;
 
@@ -101,6 +112,55 @@ void Hush::Scene::RemoveSystem(std::string_view name)
 
     // Sort the systems again
     SortSystems();
+}
+
+Hush::Entity Hush::Scene::CreateEntity()
+{
+    auto *world = static_cast<ecs_world_t *>(m_world);
+
+    const Entity::EntityId entityId = ecs_new(world);
+
+    return Entity{this, entityId};
+}
+
+Hush::Entity Hush::Scene::CreateEntityWihName(std::string_view name)
+{
+    auto *world = static_cast<ecs_world_t *>(m_world);
+
+    const ecs_entity_desc_t desc = {
+        .name = name.data(),
+    };
+
+    const Entity::EntityId entityId = ecs_entity_init(world, &desc);
+
+    return Entity{this, entityId};
+}
+
+void Hush::Scene::DestroyEntity(Entity &&entity)
+{
+    auto *world = static_cast<ecs_world_t *>(m_world);
+
+    ecs_delete(world, entity.GetId());
+}
+
+std::optional<std::uint64_t> Hush::Scene::GetRegisteredComponentId(std::string_view name)
+{
+    std::shared_lock lock(m_registeredEntitiesMutex);
+    const auto entityIt = m_registeredEntities.find(name.data());
+
+    if (entityIt != m_registeredEntities.end())
+    {
+        return entityIt->second;
+    }
+
+    // Component not found.
+    return std::nullopt;
+}
+
+void Hush::Scene::RegisterComponentId(std::string_view name, Entity::EntityId id)
+{
+    std::unique_lock lock(m_registeredEntitiesMutex);
+    m_registeredEntities.insert_or_assign(name.data(), id);
 }
 
 void Hush::Scene::AddEngineSystem(ISystem *system)

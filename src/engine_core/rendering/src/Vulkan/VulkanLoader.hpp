@@ -59,11 +59,11 @@ namespace Hush {
 	inline std::vector<BufferType> VulkanLoader::FindAttributeByName(const fastgltf::Primitive& primitive, const fastgltf::Asset& asset, const std::string_view& attributeName)
 	{
 		std::vector<BufferType> result;
-		const fastgltf::Primitive::attribute_type* attribute = primitive.findAttribute(attributeName);
+        const fastgltf::Attribute *attribute = primitive.findAttribute(attributeName);
 		if (attribute == primitive.attributes.end()) {
 			return result;
 		}
-		const fastgltf::Accessor& foundAccessor = asset.accessors[attribute->second];
+		const fastgltf::Accessor& foundAccessor = asset.accessors[attribute->accessorIndex];
 		const fastgltf::BufferView& accessorBufferView = asset.bufferViews[foundAccessor.bufferViewIndex.value()];
 		const fastgltf::Buffer& buffer = asset.buffers[accessorBufferView.bufferIndex];
 		result.reserve(foundAccessor.count);

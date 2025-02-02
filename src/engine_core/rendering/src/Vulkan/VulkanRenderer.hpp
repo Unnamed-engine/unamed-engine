@@ -10,7 +10,7 @@
 
 #include "Renderer.hpp"
 #include "Assertions.hpp"
-#include <magic_enum.hpp>
+#include <magic_enum/magic_enum.hpp>
 #include "FrameData.hpp"
 #include "VkTypes.hpp"
 #include "VulkanDeletionQueue.hpp"

@@ -6,11 +6,14 @@
 
 #pragma once
 
+#include "Entity.hpp"
 #include "ISystem.hpp"
 
-#include "flecs.h"
 #include <array>
 #include <memory>
+#include <shared_mutex>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace Hush
@@ -18,17 +21,20 @@ namespace Hush
     class Engine;
 
     // TODO: this class is expected to change a lot, it's just a placeholder for now.
-    // The API is not ready and I would like to think about implementing it considering scripting in the future and bindings.
+    // The API is not ready and I would like to think about implementing it considering scripting in the future and
+    // bindings.
     class Scene
     {
         constexpr static std::uint16_t ORDER_BUCKET_SIZE = ISystem::MAX_ORDER + 1;
 
-    public:
-        using EntityId = ecs_entity_t;
+        friend class Engine;
 
+        friend class Entity;
+
+    public:
         /// Constructor.
         /// @param engine Game engine
-        Scene(Engine &engine);
+        Scene(Engine *engine);
 
         ~Scene();
 
@@ -66,31 +72,37 @@ namespace Hush
         /// @param name Name of the system to remove.
         void RemoveSystem(std::string_view name);
 
-        EntityId CreateEntity()
-        {
-            return m_world.entity();
-        }
+        /// Creates an entity
+        Entity CreateEntity();
 
-        template <typename C>
-        void AddComponent(EntityId entity, C &&component)
-        {
-            m_world.component<C>();
+        /// Creates an entity with a name
+        /// @param name Unique name of the entity
+        /// @return Entity
+        Entity CreateEntityWihName(std::string_view name);
 
-            m_world.set(entity, std::forward<C>(component));
-        }
+        /// Destroy an entity.
+        /// @param entity Entity to destroy
+        void DestroyEntity(Entity &&entity);
 
-        template <typename C>
-        void RemoveComponent(EntityId entity)
-        {
-            m_world.remove<C>(entity);
-        }
+        /// Get the component registered id by name
+        /// @param name Component name
+        /// @return The component id if it exists, std::nullopt otherwise
+        std::optional<std::uint64_t> GetRegisteredComponentId(std::string_view name);
 
-        void DeleteEntity(EntityId entity)
-        {
-            m_world.delete_with(entity);
-        }
+        /// Register a component id
+        /// @param name Name of the component
+        /// @param id Id of the component
+        void RegisterComponentId(std::string_view name, Entity::EntityId id);
 
     private:
+        friend class Entity;
+
+        [[nodiscard]]
+        void *GetWorld() const
+        {
+            return m_world;
+        }
+
         /// Add an engine system to the scene
         /// @param system System to add
         void AddEngineSystem(ISystem *system);
@@ -102,12 +114,20 @@ namespace Hush
         /// This is not the most efficient way to store the systems btw.
         std::array<std::vector<ISystem *>, ORDER_BUCKET_SIZE> m_systems;
 
+        /// Map of registered entities
+        std::unordered_map<std::string, Entity::EntityId> m_registeredEntities;
+
+        /// Mutex to protect the registered entities
+        std::shared_mutex m_registeredEntitiesMutex;
+
         /// Special vector to store the systems that come from the engine.
         std::vector<ISystem *> m_engineSystems;
 
         /// User systems
         std::vector<std::unique_ptr<ISystem>> m_userSystems;
 
-        flecs::world m_world;
+        Engine *m_engine;
+
+        void *m_world;
     };
 } // namespace Hush
