@@ -40,14 +40,26 @@ namespace Hush::ComponentTraits
     enum class EComponentOpsFlags : std::uint32_t
     {
         None = 0,
-        NoCtor = 1 << 0,
-        NoDtor = 1 << 1,
-        NoCopy = 1 << 2,
-        NoMove = 1 << 3,
-        NoCopyCtor = 1 << 4,
-        NoMoveCtor = 1 << 5,
-        NoMoveDtor = 1 << 6,
-        NoMoveAssignDtor = 1 << 7
+
+        // Flags used for testing if a component has a specific operation. Do not use these to disable operations. It won't work.
+        HasCtor = 1 << 0,
+        HasDtor = 1 << 1,
+        HasCopy = 1 << 2,
+        HasMove = 1 << 3,
+        HasCopyCtor = 1 << 4,
+        HasMoveCtor = 1 << 5,
+        HasMoveDtor = 1 << 6,
+        HasMoveAssignDtor = 1 << 7,
+
+        // Flags used to disable operations.
+        NoCtor = 1 << 8,
+        NoDtor = 1 << 9,
+        NoCopy = 1 << 10,
+        NoMove = 1 << 11,
+        NoCopyCtor = 1 << 12,
+        NoMoveCtor = 1 << 13,
+        NoMoveDtor = 1 << 14,
+        NoMoveAssignDtor = 1 << 15,
     };
 
     struct ComponentOps
@@ -427,7 +439,7 @@ namespace Hush::ComponentTraits
         }
 #endif
 
-        enum class EntityRegisterStatus
+        enum class EEntityRegisterStatus
         {
             Registered,
             NotRegistered,
@@ -438,7 +450,7 @@ namespace Hush::ComponentTraits
         /// @param worldPtr Pointer to the world.
         /// @return Pair with the status of the entity and the entity id.
         template <typename T>
-        static std::pair<EntityRegisterStatus, std::uint64_t *> GetEntityIdImpl(void *worldPtr)
+        static std::pair<EEntityRegisterStatus, std::uint64_t *> GetEntityIdImpl(void *worldPtr)
         {
             thread_local std::uint64_t entityId = 0;
             thread_local void *world = nullptr;
@@ -447,11 +459,11 @@ namespace Hush::ComponentTraits
             if (entityId == 0 || world != worldPtr)
             {
                 world = worldPtr;
-                return {EntityRegisterStatus::NotRegistered, &entityId};
+                return {EEntityRegisterStatus::NotRegistered, &entityId};
             }
             world = worldPtr;
 
-            return {EntityRegisterStatus::Registered, &entityId};
+            return {EEntityRegisterStatus::Registered, &entityId};
         }
 
         /// Get the entity id for a given entity type.
@@ -459,7 +471,7 @@ namespace Hush::ComponentTraits
         /// @param worldPtr Pointer to the world.
         /// @return Pair with the status of the entity and the entity id.
         template <typename T>
-        static std::pair<EntityRegisterStatus, std::uint64_t *> GetEntityId(void *worldPtr)
+        static std::pair<EEntityRegisterStatus, std::uint64_t *> GetEntityId(void *worldPtr)
         {
             return GetEntityIdImpl<std::remove_cvref_t<T>>(worldPtr);
         }

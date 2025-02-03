@@ -8,6 +8,7 @@
 
 #include "Entity.hpp"
 #include "ISystem.hpp"
+#include "Query.hpp"
 
 #include <array>
 #include <memory>
@@ -30,6 +31,8 @@ namespace Hush
         friend class Engine;
 
         friend class Entity;
+
+        using EntityId = Entity::EntityId;
 
     public:
         /// Constructor.
@@ -94,8 +97,41 @@ namespace Hush
         /// @param id Id of the component
         void RegisterComponentId(std::string_view name, Entity::EntityId id);
 
+        [[nodiscard]]
+        EntityId RegisterComponentRaw(const ComponentTraits::ComponentInfo &desc) const;
+
+        template <typename... Components>
+        Query<Components...> CreateQuery()
+        {
+            // TODO: create a query with the components
+            std::array<Entity::EntityId, sizeof...(Components)> components = {RegisterIfNeededSlow<Components>()...};
+            return Query(this);
+        }
+
+        template <std::size_t N>
+            requires(N > 0 && N <= RawQuery::MAX_COMPONENTS)
+        RawQuery CreateRawQuery(std::array<Entity::EntityId, N> components)
+        {
+            return RawQuery(this, components);
+        }
+
     private:
         friend class Entity;
+
+        template <typename T>
+        [[nodiscard]]
+        EntityId RegisterIfNeededSlow() const
+        {
+            // First, get the entity id, and check if the component is registered.
+            auto [status, componentId] = ComponentTraits::detail::GetEntityId<T>(this);
+            const ComponentTraits::ComponentInfo info = ComponentTraits::GetComponentInfo<T>();
+
+            return InternalRegisterCppComponent(status, componentId, info);
+        }
+
+        Entity::EntityId InternalRegisterCppComponent(ComponentTraits::detail::EEntityRegisterStatus registerStatus,
+                                                      std::uint64_t *id,
+                                                      const ComponentTraits::ComponentInfo &desc);
 
         [[nodiscard]]
         void *GetWorld() const

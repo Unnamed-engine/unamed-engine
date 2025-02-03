@@ -31,18 +31,17 @@ namespace Hush
     /// The `*Component` functions are the ones that should be used.
     class Entity
     {
-    public:
-        using EntityId = std::uint64_t;
-
-        explicit Entity(Scene *ownerScene, EntityId entityId)
+        explicit Entity(Scene *ownerScene, std::uint64_t entityId)
             : m_entityId(entityId),
               m_ownerScene(ownerScene)
         {
         }
 
-        ~Entity() noexcept
-        {
-        }
+    public:
+        using EntityId = std::uint64_t;
+
+        /// Entity destructor. It does not destroy the entity. For that, use `Scene::DestroyEntity`.
+        ~Entity() noexcept = default;
 
         Entity(const Entity &) = delete;
         Entity &operator=(const Entity &) = delete;
@@ -124,6 +123,9 @@ namespace Hush
             return static_cast<std::remove_cvref_t<T> *>(GetComponentRaw(componentId));
         }
 
+        /// Get a component from the entity.
+        /// @tparam T Type of the component.
+        /// @return Pointer to the component, or nullptr if the component is not found.
         template <typename T>
         const std::remove_cvref_t<T> *GetComponent() const
         {
@@ -146,7 +148,7 @@ namespace Hush
         /// Register a component to the entity.
         /// @tparam T Type to register.
         template <typename T>
-        void RegisterComponent()
+        void RegisterComponent() const
         {
             (void)RegisterIfNeededSlow<std::remove_cvref_t<T>>();
         }
@@ -218,38 +220,10 @@ namespace Hush
         EntityId RegisterIfNeededSlow() const
         {
             // First, get the entity id, and check if the component is registered.
-            auto [status, componentId] = ComponentTraits::detail::GetEntityId<T>(GetSceneWorld());
-
-            // Slow path, the component is zero, which means: 1. It is not registered in this binary instance, or 2. It
-            // has never been registered.
-            if (status == ComponentTraits::detail::EntityRegisterStatus::NotRegistered)
-            {
-                // First, check if the component is already registered in the scene.
-                if (auto cachedComponentId = InternalCachedComponentId(ComponentTraits::GetTypeName<T>());
-                    cachedComponentId.has_value())
-                {
-                    // Okay, already registered in the scene by another thread or translation unit.
-                    *componentId = *cachedComponentId;
-                }
-                else
-                {
-                    // We need to register the component.
-                    *componentId = InternalRegisterComponent<T>();
-                }
-            }
-            return *componentId;
-        }
-
-        /// Register a component.
-        /// @tparam T Type of the component.
-        /// @return Id of the component.
-        template <typename T>
-        [[nodiscard]]
-        EntityId InternalRegisterComponent() const
-        {
-            // Get the info
+            auto [status, componentId] = ComponentTraits::detail::GetEntityId<T>(m_ownerScene);
             const ComponentTraits::ComponentInfo info = ComponentTraits::GetComponentInfo<T>();
-            return InternalRegisterCppComponent(info);
+
+            return InternalRegisterCppComponent(status, componentId, info);
         }
 
         [[nodiscard]]
@@ -265,7 +239,9 @@ namespace Hush
         /// @param desc Component description.
         /// @return ID of the component.
         [[nodiscard]]
-        EntityId InternalRegisterCppComponent(const ComponentTraits::ComponentInfo &desc) const;
+        EntityId InternalRegisterCppComponent(ComponentTraits::detail::EEntityRegisterStatus registerStatus,
+                                              std::uint64_t *id,
+                                              const ComponentTraits::ComponentInfo &desc) const;
 
         /// Get the id of a component from the cache.
         /// @param name Name of the component.

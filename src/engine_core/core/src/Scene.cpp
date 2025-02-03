@@ -163,6 +163,219 @@ void Hush::Scene::RegisterComponentId(std::string_view name, Entity::EntityId id
     m_registeredEntities.insert_or_assign(name.data(), id);
 }
 
+Hush::Entity::EntityId Hush::Scene::RegisterComponentRaw(const ComponentTraits::ComponentInfo &desc) const
+{
+    struct ComponentInfo
+    {
+        std::size_t size{};
+        std::size_t alignment{};
+        std::string name;
+        ComponentTraits::ComponentOps ops{};
+
+        void *userCtx{};
+        void (*userCtxFree)(void *){};
+    };
+
+    auto *componentInfo = new ComponentInfo();
+    componentInfo->size = desc.size;
+    componentInfo->alignment = desc.alignment;
+    componentInfo->name = desc.name;
+    componentInfo->ops = desc.ops;
+    componentInfo->userCtx = desc.userCtx;
+    componentInfo->userCtxFree = desc.userCtxFree;
+
+    ecs_component_desc_t componentDesc = {};
+    componentDesc.type.alignment = componentInfo->alignment;
+    componentDesc.type.size = componentInfo->size;
+    componentDesc.type.name = componentInfo->name.data();
+    componentDesc.type.hooks.binding_ctx = componentInfo;
+    componentDesc.type.hooks.binding_ctx_free = [](void *ctx) {
+        auto *info = static_cast<ComponentInfo *>(ctx);
+        if (info->userCtxFree != nullptr)
+        {
+            info->userCtxFree(info->userCtx);
+        }
+        delete info;
+    };
+
+    if (desc.ops.ctor != nullptr)
+    {
+        componentDesc.type.hooks.ctor = [](void *ptr, int32_t count, const ecs_type_info_t *type_info) {
+            auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+
+            ComponentTraits::ComponentInfo componentDesc = {
+                .size = info->size,
+                .alignment = info->alignment,
+                .name = info->name,
+                .ops = info->ops,
+                .userCtx = info->userCtx,
+                .userCtxFree = info->userCtxFree,
+            };
+
+            info->ops.ctor(ptr, count, componentDesc);
+        };
+    }
+
+    if (desc.ops.dtor != nullptr)
+    {
+        componentDesc.type.hooks.dtor = [](void *ptr, int32_t count, const ecs_type_info_t *type_info) {
+            auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+
+            ComponentTraits::ComponentInfo componentDesc = {
+                .size = info->size,
+                .alignment = info->alignment,
+                .name = info->name,
+                .ops = info->ops,
+                .userCtx = info->userCtx,
+                .userCtxFree = info->userCtxFree,
+            };
+
+            info->ops.dtor(ptr, count, componentDesc);
+        };
+    }
+
+    if (desc.ops.copy != nullptr)
+    {
+        componentDesc.type.hooks.copy = [](void *dst, const void *src, int32_t count,
+                                           const ecs_type_info_t *type_info) {
+            auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+
+            ComponentTraits::ComponentInfo componentDesc = {
+                .size = info->size,
+                .alignment = info->alignment,
+                .name = info->name,
+                .ops = info->ops,
+                .userCtx = info->userCtx,
+                .userCtxFree = info->userCtxFree,
+            };
+
+            info->ops.copy(dst, src, count, componentDesc);
+        };
+    }
+
+    if (desc.ops.move != nullptr)
+    {
+        componentDesc.type.hooks.move = [](void *dst, void *src, int32_t count, const ecs_type_info_t *type_info) {
+            auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+
+            ComponentTraits::ComponentInfo componentDesc = {
+                .size = info->size,
+                .alignment = info->alignment,
+                .name = info->name,
+                .ops = info->ops,
+                .userCtx = info->userCtx,
+                .userCtxFree = info->userCtxFree,
+            };
+
+            info->ops.move(dst, src, count, componentDesc);
+        };
+    }
+
+    if (desc.ops.copyCtor != nullptr)
+    {
+        componentDesc.type.hooks.copy_ctor = [](void *dst, const void *src, int32_t count,
+                                                const ecs_type_info_t *type_info) {
+            auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+
+            ComponentTraits::ComponentInfo componentDesc = {
+                .size = info->size,
+                .alignment = info->alignment,
+                .name = info->name,
+                .ops = info->ops,
+                .userCtx = info->userCtx,
+                .userCtxFree = info->userCtxFree,
+            };
+
+            info->ops.copyCtor(dst, src, count, componentDesc);
+        };
+    }
+
+    if (desc.ops.moveCtor != nullptr)
+    {
+        componentDesc.type.hooks.move_ctor = [](void *dst, void *src, int32_t count, const ecs_type_info_t *type_info) {
+            const auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+
+            ComponentTraits::ComponentInfo componentDesc = {
+                .size = info->size,
+                .alignment = info->alignment,
+                .name = info->name,
+                .ops = info->ops,
+                .userCtx = info->userCtx,
+                .userCtxFree = info->userCtxFree,
+            };
+
+            info->ops.moveCtor(dst, src, count, componentDesc);
+        };
+    }
+
+    if (desc.ops.moveDtor != nullptr)
+    {
+        componentDesc.type.hooks.move_dtor = [](void *dst, void *src, int32_t count, const ecs_type_info_t *type_info) {
+            const auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+
+            ComponentTraits::ComponentInfo componentDesc = {
+                .size = info->size,
+                .alignment = info->alignment,
+                .name = info->name,
+                .ops = info->ops,
+                .userCtx = info->userCtx,
+                .userCtxFree = info->userCtxFree,
+            };
+
+            info->ops.moveDtor(dst, src, count, componentDesc);
+        };
+    }
+
+    if (desc.ops.moveAssignDtor != nullptr)
+    {
+        componentDesc.type.hooks.move_dtor = [](void *dst, void *src, int32_t count, const ecs_type_info_t *type_info) {
+            const auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+
+            ComponentTraits::ComponentInfo componentDesc = {
+                .size = info->size,
+                .alignment = info->alignment,
+                .name = info->name,
+                .ops = info->ops,
+                .userCtx = info->userCtx,
+                .userCtxFree = info->userCtxFree,
+            };
+
+            info->ops.moveAssignDtor(dst, src, count, componentDesc);
+        };
+    }
+
+    componentDesc.type.hooks.flags = static_cast<std::uint32_t>(desc.opsFlags);
+
+    // Register the component
+    auto *world = static_cast<ecs_world_t *>(GetWorld());
+    ecs_entity_t componentId = ecs_component_init(world, &componentDesc);
+
+    return componentId;
+}
+
+Hush::Entity::EntityId Hush::Scene::InternalRegisterCppComponent(
+    ComponentTraits::detail::EEntityRegisterStatus registerStatus,
+    std::uint64_t *id,
+    const ComponentTraits::ComponentInfo &desc)
+{
+    // Slow path, the component is zero, which means: 1. It is not registered in this binary instance, or 2. It
+    // has never been registered.
+    if (registerStatus == ComponentTraits::detail::EEntityRegisterStatus::NotRegistered)
+    {
+        // First, check if the component is already registered in the scene.
+        if (auto cachedComponentId = GetRegisteredComponentId(desc.name); cachedComponentId.has_value())
+        {
+            // Okay, already registered in the scene by another thread or translation unit.
+            *id = *cachedComponentId;
+        }
+        else
+        {
+            // We need to register the component.
+            *id = RegisterComponentRaw(desc);
+        }
+    }
+    return *id;
+}
 void Hush::Scene::AddEngineSystem(ISystem *system)
 {
     m_engineSystems.push_back(system);

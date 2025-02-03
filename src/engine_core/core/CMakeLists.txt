@@ -2,7 +2,9 @@
 add_library(HushCore OBJECT
         src/ISystem.cpp
         src/Scene.cpp
-        src/Entity.cpp)
+        src/Entity.cpp
+        src/Query.cpp
+)
 
 add_library(Hush::Core ALIAS HushCore)
 
