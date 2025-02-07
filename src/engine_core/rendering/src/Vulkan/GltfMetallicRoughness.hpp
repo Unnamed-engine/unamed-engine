@@ -15,7 +15,6 @@ namespace Hush {
 	{
 		VkMaterialPipeline opaquePipeline;
 		VkMaterialPipeline transparentPipeline;
-		VkMaterialPipeline transparentMaskPipeline;
 
 		VkDescriptorSetLayout materialLayout;
 
@@ -49,13 +48,11 @@ namespace Hush {
 			switch (pass)
 			{
 			case Hush::EMaterialPass::MainColor:
+			case Hush::EMaterialPass::Mask:
 				matData.pipeline = &this->opaquePipeline;
 				break;
 			case Hush::EMaterialPass::Transparent:
 				matData.pipeline = &this->transparentPipeline;
-				break;
-			case Hush::EMaterialPass::Mask:
-				matData.pipeline = &this->transparentMaskPipeline;
 				break;
 			default:
 				HUSH_ASSERT(false, "Unkown material pass: {}", magic_enum::enum_name(pass));

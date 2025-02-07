@@ -31,7 +31,6 @@ namespace Hush
         VulkanPipelineBuilder& DisableBlending();
         VulkanPipelineBuilder& EnableBlendingAdditive();
         VulkanPipelineBuilder& EnableBlendingAlphaBlend();
-        VulkanPipelineBuilder& EnableMaskAlphaBlend();
         VulkanPipelineBuilder& DisableDepthTest();
 		VulkanPipelineBuilder& EnableDepthTest(bool depthWriteEnable, VkCompareOp op);
 

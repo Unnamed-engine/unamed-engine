@@ -51,7 +51,6 @@ void Hush::GLTFMetallicRoughness::BuildPipelines(IRenderer* engine, const std::s
 
 	this->opaquePipeline.layout = newLayout;
 	this->transparentPipeline.layout = newLayout;
-	this->transparentMaskPipeline.layout = newLayout;
 
 	// build the stage-create-info for both vertex and fragment stages. This lets
 	// the pipeline know the shader modules per stage
@@ -70,10 +69,6 @@ void Hush::GLTFMetallicRoughness::BuildPipelines(IRenderer* engine, const std::s
 
 	// Create the opaque variant
 	this->opaquePipeline.pipeline = pipelineBuilder.Build(device);
-	
-	// Create the transparent mask variant
-	pipelineBuilder.EnableMaskAlphaBlend();
-	this->transparentMaskPipeline.pipeline = pipelineBuilder.Build(device);
 
 	// Create the transparent variant
 	pipelineBuilder.EnableBlendingAdditive();

@@ -192,23 +192,6 @@ Hush::VulkanPipelineBuilder &Hush::VulkanPipelineBuilder::EnableBlendingAlphaBle
     return *this;
 }
 
-
-/// @brief Masked alpha blend should be handled in the fragment shader as well as resetting blend modes and color write masks
-Hush::VulkanPipelineBuilder& Hush::VulkanPipelineBuilder::EnableMaskAlphaBlend()
-{
-	this->m_colorBlendAttachment.colorWriteMask =
-		VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	this->m_colorBlendAttachment.blendEnable = VK_FALSE; // No blending
-	// Reset blend factors to defaults (not used when blending is disabled)
-	this->m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	this->m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	this->m_colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-	this->m_colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	this->m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	this->m_colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-	return *this;
-}
-
 Hush::VulkanPipelineBuilder& Hush::VulkanPipelineBuilder::DisableDepthTest()
 {
 	this->m_depthStencil.depthTestEnable = VK_FALSE;
