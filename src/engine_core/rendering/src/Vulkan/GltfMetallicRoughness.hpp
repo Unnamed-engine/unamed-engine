@@ -15,6 +15,7 @@ namespace Hush {
 	{
 		VkMaterialPipeline opaquePipeline;
 		VkMaterialPipeline transparentPipeline;
+		VkMaterialPipeline transparentMaskPipeline;
 
 		VkDescriptorSetLayout materialLayout;
 
@@ -44,12 +45,23 @@ namespace Hush {
 		inline VkMaterialInstance WriteMaterial(VkDevice device, EMaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator) {
 			Hush::VkMaterialInstance matData;
 			matData.passType = pass;
-			if (pass == EMaterialPass::Transparent) {
-				matData.pipeline = &transparentPipeline;
+			
+			switch (pass)
+			{
+			case Hush::EMaterialPass::MainColor:
+				matData.pipeline = &this->opaquePipeline;
+				break;
+			case Hush::EMaterialPass::Transparent:
+				matData.pipeline = &this->transparentPipeline;
+				break;
+			case Hush::EMaterialPass::Mask:
+				matData.pipeline = &this->transparentMaskPipeline;
+				break;
+			default:
+				HUSH_ASSERT(false, "Unkown material pass: {}", magic_enum::enum_name(pass));
+				break;
 			}
-			else {
-				matData.pipeline = &opaquePipeline;
-			}
+
 			//Not initialized material layout here from VkLoader
 			matData.materialSet = descriptorAllocator.Allocate(device, this->materialLayout);
 

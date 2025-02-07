@@ -213,10 +213,8 @@ std::shared_ptr<Hush::VkMaterialInstance> Hush::VulkanLoader::GenerateMaterial(s
 	GLTFMetallicRoughness::MaterialConstants* mappedData = static_cast<GLTFMetallicRoughness::MaterialConstants*>(allocInfo.pMappedData);
 	mappedData[materialIdx] = constants;
 
-	EMaterialPass passType = EMaterialPass::MainColor;
-	if (material.alphaMode == fastgltf::AlphaMode::Blend) {
-		passType = EMaterialPass::Transparent;
-	}
+	EMaterialPass passType = GetMaterialPassFromFastGltfPass(material.alphaMode);
+	//TODO: Handle custom alpha cutoffs
 
 	GLTFMetallicRoughness::MaterialResources materialResources;
 	// default the material textures
@@ -292,6 +290,21 @@ std::shared_ptr<Hush::ImageTexture> Hush::VulkanLoader::TextureFromImageDataSour
 }
 
 
+
+Hush::EMaterialPass Hush::VulkanLoader::GetMaterialPassFromFastGltfPass(fastgltf::AlphaMode pass)
+{
+	switch (pass)
+	{
+		case fastgltf::AlphaMode::Opaque:
+			return EMaterialPass::MainColor;
+		case fastgltf::AlphaMode::Blend:
+			return EMaterialPass::Transparent;
+		case fastgltf::AlphaMode::Mask:
+			return EMaterialPass::Mask;
+		default:
+			return EMaterialPass::Other;
+	}
+}
 
 constexpr VkFilter Hush::VulkanLoader::ExtractFilter(const fastgltf::Filter& filter)
 {
