@@ -42,16 +42,27 @@ Hush::Result<std::vector<std::shared_ptr<Hush::VulkanMeshNode>>, Hush::VulkanLoa
 		meshes.emplace_back(node);
 	}
 
-	for (const auto& scene : loadedAsset->scenes)
-	{
-
-	}
 
 	for (const fastgltf::Node& node : loadedAsset->nodes)
 	{
 		if (!node.meshIndex.has_value()) continue;
 		std::shared_ptr<VulkanMeshNode> meshNode = meshes.at(node.meshIndex.value());
 		meshNode->SetLocalTransform(GltfLoadFunctions::GetNodeTransform(node));
+	}
+
+	for (int i = 0; i < loadedAsset->nodes.size(); i++) {
+		fastgltf::Node& node = loadedAsset->nodes[i];
+		if (!node.meshIndex.has_value()) continue;
+		std::shared_ptr<VulkanMeshNode>& sceneNode = meshes[node.meshIndex.value()];
+		if (node.children.empty()) {
+			//If there are no children, we'll set the transform to global(???
+			sceneNode->SetWorldTransform(sceneNode->GetLocalTransform());
+			continue;
+		}
+		for (size_t& c : node.children) {
+			sceneNode->AddChild(meshes[c]);
+			meshes[c]->SetParent(sceneNode);
+		}
 	}
 
 	return meshes;
@@ -211,11 +222,21 @@ std::shared_ptr<Hush::VkMaterialInstance> Hush::VulkanLoader::GenerateMaterial(s
 	//Scene Material buffer writing
 	VmaAllocationInfo& allocInfo = sceneMaterialBuffer->GetAllocationInfo();
 	GLTFMetallicRoughness::MaterialConstants* mappedData = static_cast<GLTFMetallicRoughness::MaterialConstants*>(allocInfo.pMappedData);
-	mappedData[materialIdx] = constants;
 
 	EMaterialPass passType = GltfLoadFunctions::GetMaterialPassFromFastGltfPass(material.alphaMode);
-	//TODO: Handle custom alpha cutoffs
+	
+	//Handle custom alpha cutoffs
+	switch (passType)
+	{
+	case EMaterialPass::MainColor:
+	case EMaterialPass::Transparent:
+		constants.alphaThreshold = 0.0f;
+		break;
+	case EMaterialPass::Mask:
+		constants.alphaThreshold = material.alphaCutoff;
+	}
 
+	mappedData[materialIdx] = constants;
 	GLTFMetallicRoughness::MaterialResources materialResources;
 	// default the material textures
 	std::optional<AllocatedImage> loadedTextureToUse = LoadedTextureFromMaterial(asset, material, loadedTextures);

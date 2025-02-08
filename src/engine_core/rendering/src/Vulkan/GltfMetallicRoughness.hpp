@@ -21,11 +21,14 @@ namespace Hush {
 
 		struct MaterialConstants
 		{
-			glm::vec4 colorFactors;
-			glm::vec4 metalRoughFactors;
+			alignas(16) glm::vec4 colorFactors;
+			alignas(16) glm::vec4 metalRoughFactors;
+			alignas(4) float alphaThreshold;
 			// padding, we need it anyway for uniform buffers
-			glm::vec4 extra[14];
+			char padding[12];
 		};
+
+		HUSH_STATIC_ASSERT(sizeof(MaterialConstants) == 48, "Metallic Roughness size mismatch!");
 
 		struct MaterialResources
 		{
@@ -48,8 +51,9 @@ namespace Hush {
 			
 			switch (pass)
 			{
-			case Hush::EMaterialPass::MainColor:
 			case Hush::EMaterialPass::Mask:
+
+			case Hush::EMaterialPass::MainColor:
 				matData.pipeline = &this->opaquePipeline;
 				break;
 			case Hush::EMaterialPass::Transparent:

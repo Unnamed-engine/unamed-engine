@@ -46,14 +46,12 @@ vec3 calcIrradiance(vec3 nor) {
     );
 }
 
-const float ALPHA_THRESHOLD = 0.5;
-
 void main() 
 {
 	vec4 texColor = texture(colorTex, inUV);
 	vec3 color = inColor * texColor.xyz;
 	float alpha = texColor.w;
-	if (alpha < ALPHA_THRESHOLD) {
+	if (alpha < materialData.alphaCutoff) {
 	    discard;
 	}
 	float lightValue = max(dot(inNormal, vec3(0.3f,1.f,0.3f)), 0.1f);
