@@ -1,6 +1,7 @@
 #include "GltfLoadFunctions.hpp"
 #include "Vector3Math.hpp"
 #include <glm/gtx/quaternion.hpp>
+#include "MaterialPass.hpp"
 
 
 glm::mat4 Hush::GltfLoadFunctions::GetNodeTransform(const fastgltf::Node& node)
@@ -31,7 +32,7 @@ glm::mat4 Hush::GltfLoadFunctions::GetNodeTransform(const fastgltf::Node& node)
 	
 }
 
-EMaterialPass Hush::GltfLoadFunctions::GetMaterialPassFromFastGltfPass(fastgltf::AlphaMode pass)
+Hush::EMaterialPass Hush::GltfLoadFunctions::GetMaterialPassFromFastGltfPass(fastgltf::AlphaMode pass)
 {
 	switch (pass)
 	{
@@ -74,4 +75,19 @@ std::shared_ptr<Hush::ImageTexture> Hush::GltfLoadFunctions::TextureFromImageDat
 		return nullptr;
 	}
 	return std::make_shared<ImageTexture>(uriData->uri.fspath());
+}
+
+Hush::Result<const uint8_t*, Hush::GltfLoadFunctions::EError> Hush::GltfLoadFunctions::GetDataFromBufferSource(const fastgltf::Buffer& buffer)
+{
+	const fastgltf::sources::Vector* vectorData = std::get_if<fastgltf::sources::Vector>(&buffer.data);
+	if (vectorData != nullptr) {
+		return vectorData->bytes.data();
+	}
+	//Ok, try the ByteView
+	const fastgltf::sources::ByteView* byteData = std::get_if<fastgltf::sources::ByteView>(&buffer.data);
+	if (byteData != nullptr) {
+		return reinterpret_cast<const uint8_t*>(byteData->bytes.data());
+	}
+	//Else, idk, we don't recognize this yet
+	return EError::InvalidMeshFile;
 }

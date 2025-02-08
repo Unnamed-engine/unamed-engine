@@ -8,6 +8,7 @@
 #include "VkTypes.hpp"
 #include "VkDescriptors.hpp"
 #include "VkMaterialInstance.hpp"
+#include "Shared/MaterialPass.hpp"
 
 namespace Hush {
 	class IRenderer;

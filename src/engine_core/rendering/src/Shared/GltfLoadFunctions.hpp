@@ -5,6 +5,8 @@
 #include "Result.hpp"
 #include "MaterialPass.hpp"
 #include "ImageTexture.hpp"
+#include "Logger.hpp"
+#include <magic_enum.hpp>
 
 namespace Hush::GltfLoadFunctions {
 
@@ -19,6 +21,8 @@ namespace Hush::GltfLoadFunctions {
 	EMaterialPass GetMaterialPassFromFastGltfPass(fastgltf::AlphaMode pass);
 
 	std::shared_ptr<ImageTexture> TextureFromImageDataSource(const fastgltf::Asset& asset, const fastgltf::Image& image);
+
+	Hush::Result<const uint8_t*, EError> GetDataFromBufferSource(const fastgltf::Buffer& buffer);
 
 	template<class BufferType>
 	inline std::vector<BufferType> FindAttributeByName(const fastgltf::Primitive& primitive, const fastgltf::Asset& asset, const std::string_view& attributeName)
