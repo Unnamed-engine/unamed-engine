@@ -57,6 +57,6 @@ void main()
 	float lightValue = max(dot(inNormal, vec3(0.3f,1.f,0.3f)), 0.1f);
 	vec3 irradiance = calcIrradiance(inNormal); 
 
-	outFragColor = vec4(color * lightValue + color * irradiance.x * vec3(0.2f) , alpha);
+	outFragColor = vec4(color * lightValue + color * irradiance * vec3(0.2f) , alpha);
 }
 
