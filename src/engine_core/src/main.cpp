@@ -2,6 +2,8 @@
 #include "HushEngine.hpp"
 #include "Scene.hpp"
 
+#include <flecs.h>
+
 struct RGBA
 {
     std::uint8_t r;
@@ -25,13 +27,45 @@ struct MyComplexType
     }
 };
 
+struct Position
+{
+    float x;
+    float y;
+};
+
+struct A
+{
+    int a = 234;
+};
+
 int main()
 {
     Hush::Scene scene(nullptr);
 
     Hush::Entity entity = scene.CreateEntity();
+    entity.EmplaceComponent<Position>(1.0f, 2.0f);
 
-    entity.EmplaceComponent<MyComplexType>(1);
+    Hush::Entity entity2 = scene.CreateEntity();
+    entity2.EmplaceComponent<Position>(3.0f, 4.0f);
+    entity2.AddComponent<A>();
+
+    auto query = scene.CreateQuery<Position>();
+
+    for (auto [positionArray] : query)
+    {
+        for (Position &position : positionArray)
+        {
+            std::cout << "Position: " << position.x << ", " << position.y << std::endl;
+            // position.x += 1.0f;
+        }
+    }
+
+    auto query2 = scene.CreateQuery<Position, A>();
+
+    query2.Each([](Position &position, A &a) {
+        std::cout << "Position: " << position.x << ", " << position.y << std::endl;
+        std::cout << "A: " << a.a << std::endl;
+    });
 
     scene.DestroyEntity(std::move(entity));
 

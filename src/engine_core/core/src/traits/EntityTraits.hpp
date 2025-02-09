@@ -188,7 +188,7 @@ namespace Hush::ComponentTraits
     /// @tparam T Type of the component.
     /// @return Nullptr
     template <typename T>
-        requires std::is_trivially_constructible_v<T>
+        requires std::is_trivially_constructible_v<T> && !std::is_default_constructible_v<T>
     constexpr ComponentCtor GetCtorImpl(EComponentOpsFlags &)
     {
         return nullptr;
@@ -233,7 +233,7 @@ namespace Hush::ComponentTraits
     }
 
     template <typename T>
-        requires !std::is_trivially_copyable_v<T> || std::is_copy_assignable_v<T>
+        requires !std::is_trivially_copyable_v<T> && std::is_copy_assignable_v<T>
     constexpr ComponentCopy GetCopyImpl(EComponentOpsFlags &)
     {
         return &CopyImpl<T>;
@@ -363,16 +363,17 @@ namespace Hush::ComponentTraits
     /// @tparam T Type of the component.
     /// @return Operations for the component.
     template <typename T>
+    requires !std::is_reference_v<T>
     constexpr ComponentOps GetOps(EComponentOpsFlags &flags)
     {
         return ComponentOps{
-            .ctor = GetCtorImpl<T>(flags),
-            .dtor = GetDtorImpl<T>(flags),
-            .copy = GetCopyImpl<T>(flags),
-            .move = GetMoveImpl<T>(flags),
-            .copyCtor = GetCopyCtorImpl<T>(flags),
-            .moveCtor = GetMoveCtorImpl<T>(flags),
-            .moveDtor = GetMoveDtorImpl<T>(flags),
+            .ctor = GetCtorImpl<std::remove_cvref_t<T>>(flags),
+            .dtor = GetDtorImpl<std::remove_cvref_t<T>>(flags),
+            .copy = GetCopyImpl<std::remove_cvref_t<T>>(flags),
+            .move = GetMoveImpl<std::remove_cvref_t<T>>(flags),
+            .copyCtor = GetCopyCtorImpl<std::remove_cvref_t<T>>(flags),
+            .moveCtor = GetMoveCtorImpl<std::remove_cvref_t<T>>(flags),
+            .moveDtor = GetMoveDtorImpl<std::remove_cvref_t<T>>(flags),
         };
     }
 
@@ -450,10 +451,10 @@ namespace Hush::ComponentTraits
         /// @param worldPtr Pointer to the world.
         /// @return Pair with the status of the entity and the entity id.
         template <typename T>
-        static std::pair<EEntityRegisterStatus, std::uint64_t *> GetEntityIdImpl(void *worldPtr)
+        static std::pair<EEntityRegisterStatus, std::uint64_t *> GetEntityIdImpl(const void *worldPtr)
         {
             thread_local std::uint64_t entityId = 0;
-            thread_local void *world = nullptr;
+            thread_local const void *world = nullptr;
 
             // First, check if it's already registered
             if (entityId == 0 || world != worldPtr)
@@ -471,7 +472,7 @@ namespace Hush::ComponentTraits
         /// @param worldPtr Pointer to the world.
         /// @return Pair with the status of the entity and the entity id.
         template <typename T>
-        static std::pair<EEntityRegisterStatus, std::uint64_t *> GetEntityId(void *worldPtr)
+        static std::pair<EEntityRegisterStatus, std::uint64_t *> GetEntityId(const void *worldPtr)
         {
             return GetEntityIdImpl<std::remove_cvref_t<T>>(worldPtr);
         }

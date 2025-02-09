@@ -11,96 +11,216 @@
 #include <cstdint>
 #include <span>
 #include <traits/EntityTraits.hpp>
-#include <algorithm>
 
 namespace Hush
 {
     class Scene;
+    class RawQuery;
 
+    ///
+    /// Low-level query for entities.
+    /// This allows getting raw void pointers to components.
     class RawQuery
     {
+        RawQuery(Scene *scene, void *query);
+
     public:
+        /// Cache mode for the query.
+        enum class ECacheMode
+        {
+            Default,
+            Auto,
+            All,
+            None
+        };
+
+        /// Component access mode.
+        enum class EComponentAccess
+        {
+            ReadOnly = 0,
+            WriteOnly = 1,
+            ReadWrite = 2,
+            Default = ReadWrite
+        };
+
+        /// Query iterator.
+        struct QueryIterator
+        {
+            QueryIterator() = default;
+
+            QueryIterator(const QueryIterator &) = delete;
+            QueryIterator &operator=(const QueryIterator &) = delete;
+
+            QueryIterator(QueryIterator &&rhs) noexcept;
+            QueryIterator &operator=(QueryIterator &&rhs) noexcept;
+
+            ~QueryIterator();
+
+            /// Move to the next entity.
+            /// @return True if there is a next entity, false otherwise.
+            [[nodiscard]]
+            bool Next();
+
+            /// Skip the current entity.
+            void Skip();
+
+            /// Check if the iterator has been finished.
+            /// @return True if the iterator has been finished. False otherwise.
+            [[nodiscard]]
+            bool Finished() const
+            {
+                return m_hasBeenDestroyed;
+            }
+
+            /// Gives the number of entities in the current table.
+            /// This number is updated when using \ref Next.
+            ///
+            /// @return The number of entities in the query.
+            [[nodiscard]]
+            std::size_t Size() const;
+
+            /// Get a component at the given index.
+            /// Index is given by the order of the components in the query. For instance,
+            /// if the query was creating with a list of components [Position, Velocity], then
+            /// Position would be at index 0 and Velocity at index 1.
+            ///
+            /// @param index Index of the component.
+            /// @param size Size of the component.
+            /// @return Pointer to the component.
+            [[nodiscard]]
+            void *const GetComponentAt(std::int8_t index, std::size_t size) const;
+
+        private:
+            friend class RawQuery;
+
+            /// Size of the ecs_query_iter_t struct.
+            static constexpr std::size_t ECS_ITER_SIZE = 384;
+            /// Alignment of the ecs_query_iter_t struct.
+            static constexpr std::size_t ECS_ITER_ALIGNMENT = 8;
+
+            alignas(ECS_ITER_ALIGNMENT) std::array<std::byte, ECS_ITER_SIZE> m_iterData{};
+            bool m_hasBeenDestroyed = false;
+
+            bool m_hasData = false;
+        };
+
         static constexpr std::uint32_t MAX_COMPONENTS = 32;
 
-        // Special case, N == MAX_COMPONENTS, which requires checking the first 0 elements.
-        RawQuery(Scene *scene, std::array<std::uint64_t, MAX_COMPONENTS> components)
-            : m_scene(scene)
-        {
-            std::ranges::copy(components, m_components.begin());
+        RawQuery() = delete;
+        RawQuery(const RawQuery &) = delete;
+        RawQuery &operator=(const RawQuery &) = delete;
 
-            // Find the first 0 element
-            for (std::uint8_t i = 0; i < MAX_COMPONENTS; ++i)
-            {
-                if (m_components[i] == 0)
-                {
-                    m_componentCount = i;
-                    break;
-                }
-            }
-        }
+        /// Move constructor.
+        /// @param rhs Other query to move from.
+        RawQuery(RawQuery &&rhs) noexcept;
 
-        RawQuery(Scene *scene, std::span<std::uint64_t> components);
+        /// Move assignment operator.
+        /// @param rhs Other query to move from.
+        /// @return self
+        RawQuery &operator=(RawQuery &&rhs) noexcept;
 
         ~RawQuery() noexcept;
 
+        /// Get the scene where the query is running.
+        /// @return Scene where the query is running.
         [[nodiscard]]
-        void *GetComponentAt(std::size_t index);
-
-        [[nodiscard]]
-        const void *const GetComponentAt(std::size_t index) const;
-
-        [[nodiscard]]
-        std::uint8_t GetComponentCount() const noexcept
-        {
-            return m_componentCount;
-        }
-
         Scene *GetScene() const noexcept
         {
             return m_scene;
         }
 
+        QueryIterator GetIterator();
+
     private:
-        std::array<std::uint64_t, MAX_COMPONENTS> m_components{};
+        friend class Scene;
+
+        void *m_query;
         Scene *m_scene;
-        std::uint8_t m_componentCount{};
     };
 
+    namespace impl
+    {
+        class QueryImpl
+        {
+            using EntityId = std::uint64_t;
+
+        public:
+            QueryImpl(RawQuery query) noexcept
+                : m_rawQuery(std::move(query))
+            {
+            }
+
+        protected:
+            EntityId InternalRegisterCppComponent(ComponentTraits::detail::EEntityRegisterStatus registerStatus,
+                                                  std::uint64_t *id,
+                                                  const ComponentTraits::ComponentInfo &desc);
+
+            RawQuery m_rawQuery;
+        };
+    } // namespace impl
+
+    /// Query for entities. This wraps the raw query and allows getting components in a type-safe way.
+    ///
+    /// @tparam Components Components to query.
     template <typename... Components>
-    class Query
+    class Query : public impl::QueryImpl
     {
         using EntityId = std::uint64_t;
 
     public:
-        using ComponentTuple = std::tuple<std::add_lvalue_reference_t<Components>...>;
-        using ConstComponentTuple = std::tuple<std::add_lvalue_reference_t<const Components>...>;
+        using ECacheMode = RawQuery::ECacheMode;
 
-        Query(Scene *scene)
-            : m_rawQuery(scene, {RegisterIfNeededSlow<Components>()...})
+        using ComponentTuple = std::tuple<std::span<std::remove_reference_t<Components>>...>;
+        using ConstComponentTuple = std::tuple<std::span<std::add_const_t<std::remove_reference_t<Components>>>...>;
+
+        /// Constructor.
+        /// @param query Raw query.
+        Query(RawQuery query) noexcept
+            : QueryImpl(std::move(query))
         {
         }
 
+        /// This is a sentinel iterator that is used to signal the end of the query.
+        struct SentinelQueryIterator
+        {
+        };
+
         /// Query iterator. This allows using range-based for loops with queries.
-        /// @tparam Components Components to query
         struct QueryIterator
         {
-            QueryIterator(Query &query, std::uint8_t index)
-                : query(query),
-                  m_index(index)
+            QueryIterator(RawQuery::QueryIterator iter)
+                : m_iter(std::move(iter))
             {
+            }
+
+            QueryIterator(const QueryIterator &) = delete;
+            QueryIterator &operator=(const QueryIterator &) = delete;
+
+            QueryIterator(QueryIterator &&rhs) noexcept
+                : m_iter(std::move(rhs.m_iter)),
+                  m_hasData(std::exchange(rhs.m_hasData, false))
+            {
+            }
+
+            QueryIterator &operator=(QueryIterator &&rhs) noexcept
+            {
+                if (this != &rhs)
+                {
+                    m_iter = std::move(rhs.m_iter);
+                    m_hasData = std::exchange(rhs.m_hasData, false);
+                }
+
+                return *this;
             }
 
             QueryIterator &operator++()
             {
-                ++m_index;
+                if (m_iter.Finished())
+                {
+                    return *this;
+                }
+                m_hasData = m_iter.Next();
                 return *this;
-            }
-
-            QueryIterator operator++(int)
-            {
-                QueryIterator copy = *this;
-                ++m_index;
-                return copy;
             }
 
             [[nodiscard]]
@@ -115,48 +235,93 @@ namespace Hush
                 return GetComponents(std::make_index_sequence<sizeof...(Components)>{});
             }
 
-            [[nodiscard]]
-            bool operator==(const QueryIterator &other) const
+            bool operator==(const SentinelQueryIterator &) const
             {
-                return m_index == other.m_index;
+                return m_iter.Finished();
+            }
+
+            bool operator!=(const SentinelQueryIterator &) const
+            {
+                return !m_iter.Finished();
+            }
+
+            RawQuery::QueryIterator &GetRawIterator()
+            {
+                return m_iter;
             }
 
             [[nodiscard]]
-            bool operator!=(const QueryIterator &other) const
+            std::size_t Size() const
             {
-                return m_index != other.m_index;
+                return m_iter.Size();
             }
 
         private:
+            friend struct SentinelQueryIterator;
+
             template <std::size_t... I>
             [[nodiscard]]
             ComponentTuple GetComponents(std::index_sequence<I...>)
             {
-                return {query.m_rawQuery.GetComponentAt(m_index + I)...};
+                return std::make_tuple(std::span<std::remove_reference_t<Components>>(
+                    static_cast<std::remove_reference_t<Components> *>(
+                        m_iter.GetComponentAt(I, sizeof(std::remove_reference_t<Components>))),
+                    m_iter.Size())...);
             }
 
-            Query &query;
-            std::uint8_t m_index{};
+            RawQuery::QueryIterator m_iter;
+            bool m_hasData = false;
         };
 
+        [[nodiscard]]
         QueryIterator begin()
         {
-            return QueryIterator(*this, 0);
+            auto queryIter = m_rawQuery.GetIterator();
+            // Force the first iteration to get the first entity.
+            auto wrappedIter = QueryIterator(std::move(queryIter));
+            ++wrappedIter;
+            return wrappedIter;
         }
 
-        QueryIterator end()
+        SentinelQueryIterator end()
         {
-            return QueryIterator(*this, m_rawQuery.GetComponentCount());
+            return SentinelQueryIterator{};
         }
 
+        [[nodiscard]]
         QueryIterator begin() const
         {
             return QueryIterator(*this, 0);
         }
 
-        QueryIterator end() const
+        SentinelQueryIterator end() const
         {
-            return QueryIterator(*this, m_rawQuery.GetComponentCount());
+            return SentinelQueryIterator{};
+        }
+
+        template <typename Func>
+            requires std::is_invocable_v<Func, std::add_lvalue_reference_t<Components>...>
+        void Each(Func &&func)
+        {
+            auto it = begin();
+            for (; it != end(); ++it)
+            {
+                const std::size_t size = it.Size();
+                ComponentTuple components = *it;
+
+                for (std::size_t i = 0; i < size; ++i)
+                {
+                    // Get the i-th component of each span. To do this, we convert it to a tuple of references and then
+                    // apply it.
+                    auto component = std::apply(
+                        [&i](auto &&...components) {
+                            return std::tie<std::add_lvalue_reference_t<Components>...>(components[i]...);
+                        },
+                        components);
+
+                    std::apply(func, component);
+                }
+            }
         }
 
     private:
@@ -170,12 +335,6 @@ namespace Hush
 
             return InternalRegisterCppComponent(status, componentId, info);
         }
-
-        EntityId InternalRegisterCppComponent(ComponentTraits::detail::EEntityRegisterStatus registerStatus,
-                                              std::uint64_t *id,
-                                              const ComponentTraits::ComponentInfo &desc);
-
-        RawQuery m_rawQuery;
     };
 
 } // namespace Hush

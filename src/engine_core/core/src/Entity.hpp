@@ -212,6 +212,8 @@ namespace Hush
         }
 
     private:
+        friend class Scene;
+
         /// Register a component if it is not registered.
         /// @tparam T Type of the component.
         /// @return Id of the component.
@@ -232,7 +234,7 @@ namespace Hush
         /// Check if a component is registered.
         /// @param componentId Id of the component.
         /// @return True if the component is registered, false otherwise.
-        bool IsComponentRegistered(EntityId componentId);
+        bool IsComponentRegistered(EntityId componentId) const;
 
         /// Register a C++ component. C++ components are special because they use a cache in the scene to
         /// avoid registering the same component multiple times.

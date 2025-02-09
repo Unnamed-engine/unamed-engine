@@ -101,26 +101,26 @@ namespace Hush
         EntityId RegisterComponentRaw(const ComponentTraits::ComponentInfo &desc) const;
 
         template <typename... Components>
-        Query<Components...> CreateQuery()
+        Query<Components...> CreateQuery(RawQuery::ECacheMode cacheMode = RawQuery::ECacheMode::Default)
         {
-            // TODO: create a query with the components
             std::array<Entity::EntityId, sizeof...(Components)> components = {RegisterIfNeededSlow<Components>()...};
-            return Query(this);
+
+            auto rawQuery = CreateRawQuery(components, cacheMode);
+
+            return Query<Components...>(std::move(rawQuery));
         }
 
-        template <std::size_t N>
-            requires(N > 0 && N <= RawQuery::MAX_COMPONENTS)
-        RawQuery CreateRawQuery(std::array<Entity::EntityId, N> components)
-        {
-            return RawQuery(this, components);
-        }
+        RawQuery CreateRawQuery(std::span<Entity::EntityId> components,
+                                RawQuery::ECacheMode cacheMode = RawQuery::ECacheMode::Default);
 
     private:
         friend class Entity;
+        friend class RawQuery;
+        friend class impl::QueryImpl;
 
         template <typename T>
         [[nodiscard]]
-        EntityId RegisterIfNeededSlow() const
+        EntityId RegisterIfNeededSlow()
         {
             // First, get the entity id, and check if the component is registered.
             auto [status, componentId] = ComponentTraits::detail::GetEntityId<T>(this);

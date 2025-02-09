@@ -138,9 +138,10 @@ Hush::Entity Hush::Scene::CreateEntityWihName(std::string_view name)
 
 void Hush::Scene::DestroyEntity(Entity &&entity)
 {
+    auto entityToDestroy = std::move(entity);
     auto *world = static_cast<ecs_world_t *>(m_world);
 
-    ecs_delete(world, entity.GetId());
+    ecs_delete(world, entityToDestroy.GetId());
 }
 
 std::optional<std::uint64_t> Hush::Scene::GetRegisteredComponentId(std::string_view name)
@@ -189,8 +190,9 @@ Hush::Entity::EntityId Hush::Scene::RegisterComponentRaw(const ComponentTraits::
     componentDesc.type.size = componentInfo->size;
     componentDesc.type.name = componentInfo->name.data();
     componentDesc.type.hooks.binding_ctx = componentInfo;
+
     componentDesc.type.hooks.binding_ctx_free = [](void *ctx) {
-        auto *info = static_cast<ComponentInfo *>(ctx);
+        const auto *info = static_cast<ComponentInfo *>(ctx);
         if (info->userCtxFree != nullptr)
         {
             info->userCtxFree(info->userCtx);
@@ -201,7 +203,7 @@ Hush::Entity::EntityId Hush::Scene::RegisterComponentRaw(const ComponentTraits::
     if (desc.ops.ctor != nullptr)
     {
         componentDesc.type.hooks.ctor = [](void *ptr, int32_t count, const ecs_type_info_t *type_info) {
-            auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+            const auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
 
             ComponentTraits::ComponentInfo componentDesc = {
                 .size = info->size,
@@ -219,7 +221,7 @@ Hush::Entity::EntityId Hush::Scene::RegisterComponentRaw(const ComponentTraits::
     if (desc.ops.dtor != nullptr)
     {
         componentDesc.type.hooks.dtor = [](void *ptr, int32_t count, const ecs_type_info_t *type_info) {
-            auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+            const auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
 
             ComponentTraits::ComponentInfo componentDesc = {
                 .size = info->size,
@@ -238,7 +240,7 @@ Hush::Entity::EntityId Hush::Scene::RegisterComponentRaw(const ComponentTraits::
     {
         componentDesc.type.hooks.copy = [](void *dst, const void *src, int32_t count,
                                            const ecs_type_info_t *type_info) {
-            auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+            const auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
 
             ComponentTraits::ComponentInfo componentDesc = {
                 .size = info->size,
@@ -256,7 +258,7 @@ Hush::Entity::EntityId Hush::Scene::RegisterComponentRaw(const ComponentTraits::
     if (desc.ops.move != nullptr)
     {
         componentDesc.type.hooks.move = [](void *dst, void *src, int32_t count, const ecs_type_info_t *type_info) {
-            auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+            const auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
 
             ComponentTraits::ComponentInfo componentDesc = {
                 .size = info->size,
@@ -275,7 +277,7 @@ Hush::Entity::EntityId Hush::Scene::RegisterComponentRaw(const ComponentTraits::
     {
         componentDesc.type.hooks.copy_ctor = [](void *dst, const void *src, int32_t count,
                                                 const ecs_type_info_t *type_info) {
-            auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
+            const auto *info = static_cast<ComponentInfo *>(type_info->hooks.binding_ctx);
 
             ComponentTraits::ComponentInfo componentDesc = {
                 .size = info->size,
@@ -353,6 +355,26 @@ Hush::Entity::EntityId Hush::Scene::RegisterComponentRaw(const ComponentTraits::
     return componentId;
 }
 
+
+Hush::RawQuery Hush::Scene::CreateRawQuery(std::span<Entity::EntityId> components, RawQuery::ECacheMode cacheMode)
+{
+    auto *const world = static_cast<ecs_world_t *>(m_world);
+
+    ecs_query_desc_t queryDesc = {};
+    // Copy the components to the query description
+    for (std::uint32_t i = 0; i < components.size(); ++i)
+    {
+        queryDesc.terms[i].id = components[i];
+    }
+
+    queryDesc.cache_kind = static_cast<ecs_query_cache_kind_t>(cacheMode);
+
+
+    ecs_query_t *query = ecs_query_init(world, &queryDesc);
+
+    return RawQuery{this, query};
+}
+
 Hush::Entity::EntityId Hush::Scene::InternalRegisterCppComponent(
     ComponentTraits::detail::EEntityRegisterStatus registerStatus,
     std::uint64_t *id,
@@ -376,6 +398,7 @@ Hush::Entity::EntityId Hush::Scene::InternalRegisterCppComponent(
     }
     return *id;
 }
+
 void Hush::Scene::AddEngineSystem(ISystem *system)
 {
     m_engineSystems.push_back(system);

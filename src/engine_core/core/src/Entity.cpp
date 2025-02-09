@@ -13,7 +13,7 @@ Hush::Entity::EntityId Hush::Entity::RegisterComponentRaw(const ComponentTraits:
     return m_ownerScene->RegisterComponentRaw(desc);
 }
 
-void *Hush::Entity::AddComponentRaw(EntityId componentId)
+void *Hush::Entity::AddComponentRaw(const EntityId componentId)
 {
     auto *world = static_cast<ecs_world_t *>(m_ownerScene->GetWorld());
 
@@ -67,8 +67,9 @@ bool Hush::Entity::RemoveComponentRaw(EntityId componentId)
 
 void Hush::Entity::Destroy(Entity &&entity)
 {
-    auto *world = static_cast<ecs_world_t *>(entity.GetSceneWorld());
-    ecs_delete(world, entity.m_entityId);
+    Scene *scene = entity.m_ownerScene;
+
+    scene->DestroyEntity(std::move(entity));
 }
 
 void *Hush::Entity::GetSceneWorld() const
@@ -76,7 +77,7 @@ void *Hush::Entity::GetSceneWorld() const
     return m_ownerScene->GetWorld();
 }
 
-bool Hush::Entity::IsComponentRegistered(EntityId componentId)
+bool Hush::Entity::IsComponentRegistered(EntityId componentId) const
 {
     return ecs_has_id(static_cast<ecs_world_t *>(m_ownerScene->GetWorld()), m_entityId, componentId);
 }
