@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <Entity.hpp>
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -89,6 +90,12 @@ namespace Hush
             /// @return Pointer to the component.
             [[nodiscard]]
             void *const GetComponentAt(std::int8_t index, std::size_t size) const;
+
+            /// Get the entity id at the given index.
+            /// @param index Index of the entity. This must be in range [0, Size()).
+            /// @return Entity id at the given index.
+            [[nodiscard]]
+            std::uint64_t GetEntityAt(std::size_t index) const;
 
         private:
             friend class RawQuery;
@@ -320,6 +327,61 @@ namespace Hush
                         components);
 
                     std::apply(func, component);
+                }
+            }
+        }
+
+        template <typename Func>
+            requires std::is_invocable_v<Func, EntityId, std::add_lvalue_reference_t<Components>...>
+        void Each(Func &&func)
+        {
+            auto it = begin();
+            for (; it != end(); ++it)
+            {
+                const std::size_t size = it.Size();
+                ComponentTuple components = *it;
+
+                for (std::size_t i = 0; i < size; ++i)
+                {
+                    // Get the i-th component of each span. To do this, we convert it to a tuple of references and then
+                    // apply it.
+                    auto entityId = it.GetRawIterator().GetEntityAt(i);
+                    auto component = std::apply(
+                        [&i](auto &&...components) {
+                            return std::tie<std::add_lvalue_reference_t<Components>...>(components[i]...);
+                        },
+                        components);
+
+                    auto finalTuple = std::tuple_cat(std::make_tuple(entityId), component);
+                    std::apply(func, finalTuple);
+                }
+            }
+        }
+
+        template <typename Func>
+            requires std::is_invocable_v<Func, Entity &, std::add_lvalue_reference_t<Components>...>
+        void Each(Func &&func)
+        {
+            auto it = begin();
+            for (; it != end(); ++it)
+            {
+                const std::size_t size = it.Size();
+                ComponentTuple components = *it;
+
+                for (std::size_t i = 0; i < size; ++i)
+                {
+                    // Get the i-th component of each span. To do this, we convert it to a tuple of references and then
+                    // apply it.
+                    auto entityId = it.GetRawIterator().GetEntityAt(i);
+                    auto component = std::apply(
+                        [&i](auto &&...components) {
+                            return std::tie<std::add_lvalue_reference_t<Components>...>(components[i]...);
+                        },
+                        components);
+
+                    auto finalTuple =
+                        std::tuple_cat(std::make_tuple(Entity(m_rawQuery.GetScene(), entityId)), component);
+                    std::apply(func, finalTuple);
                 }
             }
         }

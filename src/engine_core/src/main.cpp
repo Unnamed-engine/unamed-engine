@@ -44,10 +44,13 @@ int main()
 
     Hush::Entity entity = scene.CreateEntity();
     entity.EmplaceComponent<Position>(1.0f, 2.0f);
+    entity.EmplaceComponent<A>(32);
 
     Hush::Entity entity2 = scene.CreateEntity();
     entity2.EmplaceComponent<Position>(3.0f, 4.0f);
     entity2.AddComponent<A>();
+
+    std::cout << "Entity id: " << entity.GetId() << std::endl;
 
     auto query = scene.CreateQuery<Position>();
 
@@ -63,6 +66,18 @@ int main()
     auto query2 = scene.CreateQuery<Position, A>();
 
     query2.Each([](Position &position, A &a) {
+        std::cout << "Position: " << position.x << ", " << position.y << std::endl;
+        std::cout << "A: " << a.a << std::endl;
+    });
+
+    query2.Each([](Hush::Entity::EntityId entityId, Position &position, A &a) {
+        std::cout << "Entity id: " << entityId << std::endl;
+        std::cout << "Position: " << position.x << ", " << position.y << std::endl;
+        std::cout << "A: " << a.a << std::endl;
+    });
+
+    query2.Each([](Hush::Entity &entity, Position &position, A &a) {
+        std::cout << "Entity id: " << entity.GetId() << std::endl;
         std::cout << "Position: " << position.x << ", " << position.y << std::endl;
         std::cout << "A: " << a.a << std::endl;
     });

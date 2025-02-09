@@ -60,6 +60,13 @@ void *const Hush::RawQuery::QueryIterator::GetComponentAt(std::int8_t index, std
     return ecs_field_w_size(queryIter, size, index);
 }
 
+std::uint64_t Hush::RawQuery::QueryIterator::GetEntityAt(std::size_t index) const
+{
+    auto *queryIter = reinterpret_cast<const ecs_iter_t *>(m_iterData.data());
+
+    return queryIter->entities[index];
+}
+
 Hush::RawQuery::QueryIterator::QueryIterator(QueryIterator &&rhs) noexcept
     : m_iterData(std::move(rhs.m_iterData)),
       m_hasBeenDestroyed(std::exchange(rhs.m_hasBeenDestroyed, true))

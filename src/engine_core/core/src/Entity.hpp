@@ -17,6 +17,9 @@ namespace Hush
 {
     class Scene;
 
+    template <typename... Components>
+    class Query;
+
     ///
     /// Describes an entity in the scene.
     /// An entity is something that exists in the scene. It can have components attached to it.
@@ -31,13 +34,12 @@ namespace Hush
     /// The `*Component` functions are the ones that should be used.
     class Entity
     {
+    public:
         explicit Entity(Scene *ownerScene, std::uint64_t entityId)
             : m_entityId(entityId),
               m_ownerScene(ownerScene)
         {
         }
-
-    public:
         using EntityId = std::uint64_t;
 
         /// Entity destructor. It does not destroy the entity. For that, use `Scene::DestroyEntity`.
@@ -213,6 +215,7 @@ namespace Hush
 
     private:
         friend class Scene;
+        friend class Query<>;
 
         /// Register a component if it is not registered.
         /// @tparam T Type of the component.
