@@ -12,17 +12,15 @@ Hush::HushEngine::~HushEngine()
 
 void Hush::HushEngine::Run()
 {
-    this->m_app = LoadApplication();
+    this->m_app = LoadApplication(this);
 
     this->m_isApplicationRunning = true;
-    WindowRenderer mainRenderer(m_app->GetAppName().c_str());
+    WindowRenderer mainRenderer(m_app->GetAppName().data());
     IRenderer *rendererImpl = mainRenderer.GetInternalRenderer();
 
     // Initialize any static resources we need
     this->Init();
 
-    this->m_app->Init();
-    
     std::chrono::steady_clock::duration elapsed;
 
     while (this->m_isApplicationRunning)
@@ -63,4 +61,5 @@ void Hush::HushEngine::Quit()
 
 void Hush::HushEngine::Init()
 {
+    this->m_app->Init();
 }

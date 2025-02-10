@@ -11,7 +11,7 @@
 
 constexpr std::size_t DEFAULT_SYSTEMS_CAPACITY = 128;
 
-Hush::Scene::Scene(Engine *engine)
+Hush::Scene::Scene(HushEngine *engine)
     : m_engine(engine),
       m_world(ecs_init())
 {
@@ -19,7 +19,10 @@ Hush::Scene::Scene(Engine *engine)
     m_userSystems.reserve(DEFAULT_SYSTEMS_CAPACITY);
 }
 
-Hush::Scene::~Scene() = default;
+Hush::Scene::~Scene()
+{
+    ecs_fini(static_cast<ecs_world_t *>(m_world));
+}
 
 void Hush::Scene::Init()
 {
@@ -186,8 +189,8 @@ Hush::Entity::EntityId Hush::Scene::RegisterComponentRaw(const ComponentTraits::
     componentInfo->userCtxFree = desc.userCtxFree;
 
     ecs_component_desc_t componentDesc = {};
-    componentDesc.type.alignment = componentInfo->alignment;
-    componentDesc.type.size = componentInfo->size;
+    componentDesc.type.alignment = static_cast<ecs_size_t>(componentInfo->alignment);
+    componentDesc.type.size = static_cast<ecs_size_t>(componentInfo->size);
     componentDesc.type.name = componentInfo->name.data();
     componentDesc.type.hooks.binding_ctx = componentInfo;
 
@@ -355,7 +358,6 @@ Hush::Entity::EntityId Hush::Scene::RegisterComponentRaw(const ComponentTraits::
     return componentId;
 }
 
-
 Hush::RawQuery Hush::Scene::CreateRawQuery(std::span<Entity::EntityId> components, RawQuery::ECacheMode cacheMode)
 {
     auto *const world = static_cast<ecs_world_t *>(m_world);
@@ -368,7 +370,6 @@ Hush::RawQuery Hush::Scene::CreateRawQuery(std::span<Entity::EntityId> component
     }
 
     queryDesc.cache_kind = static_cast<ecs_query_cache_kind_t>(cacheMode);
-
 
     ecs_query_t *query = ecs_query_init(world, &queryDesc);
 

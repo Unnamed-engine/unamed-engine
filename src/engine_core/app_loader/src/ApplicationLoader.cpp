@@ -5,6 +5,7 @@
 */
 
 #include "ApplicationLoader.hpp"
+#include "../../src/HushEngine.hpp"
 #include "AppSupport.hpp"
 #include "Platform.hpp"
 
@@ -12,9 +13,9 @@
 
 extern "C" bool BundledAppExists_Internal_() HUSH_WEAK;
 
-extern "C" Hush::IApplication* BundledApp_Internal_() HUSH_WEAK;
+extern "C" Hush::IApplication *BundledApp_Internal_(Hush::HushEngine *engine) HUSH_WEAK;
 
-std::unique_ptr<Hush::IApplication> Hush::LoadApplication()
+std::unique_ptr<Hush::IApplication> Hush::LoadApplication(HushEngine *engine)
 {
     // First, check if platform supports shared library app. If not, just attempt to load the bundled app.
 #if !HUSH_SUPPORTS_SHARED_APP
@@ -24,7 +25,7 @@ std::unique_ptr<Hush::IApplication> Hush::LoadApplication()
     if (BundledAppExists_Internal_())
     {
         // It exists, just return it.
-        return std::unique_ptr<IApplication>(BundledApp_Internal_());
+        return std::unique_ptr<IApplication>(BundledApp_Internal_(engine));
     }
 
     // We can't find it, attempt to load it through a shared library.

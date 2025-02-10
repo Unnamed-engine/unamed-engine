@@ -15,8 +15,7 @@ namespace Hush
     class IApplication
     {
     public:
-        IApplication(std::string_view appName)
-            : m_appName(appName)
+        IApplication()
         {
         }
 
@@ -27,39 +26,19 @@ namespace Hush
 
         virtual ~IApplication() = default;
 
-        void Init();
+        virtual void Init() = 0;
 
-        void Update(float delta);
+        virtual void Update(float delta) = 0;
 
-        void FixedUpdate(float delta);
+        virtual void FixedUpdate(float delta) = 0;
 
-        void OnPreRender();
+        virtual void OnPreRender() = 0;
 
-        void OnRender();
+        virtual void OnRender() = 0;
 
-        void OnPostRender();
+        virtual void OnPostRender() = 0;
 
         [[nodiscard]]
-        std::string GetAppName() const
-        {
-            return m_appName;
-        }
-
-    protected:
-        virtual void UserInit() = 0;
-
-        virtual void UserUpdate(float delta) = 0;
-
-        virtual void UserFixedUpdate(float delta) = 0;
-
-        virtual void UserOnPreRender() = 0;
-
-        virtual void UserOnRender() = 0;
-
-        virtual void UserOnPostRender() = 0;
-
-    private:
-        std::string m_appName;
-        std::unique_ptr<Scene> m_scene;
+        virtual std::string_view GetAppName() const noexcept = 0;
     };
 } // namespace Hush

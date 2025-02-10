@@ -213,6 +213,11 @@ namespace Hush
             return m_entityId;
         }
 
+        /// Get the name of the entity.
+        /// @return Name of the entity.
+        [[nodiscard]]
+        std::optional<std::string_view> GetName() const;
+
     private:
         friend class Scene;
         friend class Query<>;

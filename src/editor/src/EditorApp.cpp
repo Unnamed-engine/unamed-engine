@@ -9,48 +9,58 @@
 
 class EditorApp final : public Hush::IApplication
 {
-  public:
-    EditorApp() : IApplication("Hush-Editor")
+public:
+    EditorApp(Hush::HushEngine *engine)
+        : m_scene(std::make_unique<Hush::Scene>(engine))
     {
     }
 
-    EditorApp(const EditorApp&) = delete;
-    EditorApp(EditorApp&&) = delete;
-    EditorApp& operator=(const EditorApp&) = delete;
-    EditorApp& operator=(EditorApp&&) = delete;
+    EditorApp(const EditorApp &) = delete;
+    EditorApp(EditorApp &&) = delete;
+    EditorApp &operator=(const EditorApp &) = delete;
+    EditorApp &operator=(EditorApp &&) = delete;
 
     ~EditorApp() override = default;
 
-    void UserInit() override
+    void Init() override
     {
+        this->m_scene->Init();
     }
 
-    void UserUpdate(float delta) override
+    void Update(float delta) override
     {
-        (void)delta;
+        this->m_scene->Update(delta);
     }
 
-    void UserFixedUpdate(float delta) override
+    void FixedUpdate(float delta) override
     {
-        (void)delta;
+        this->m_scene->FixedUpdate(delta);
     }
 
-    void UserOnRender() override
+    void OnRender() override
     {
+        this->m_scene->Render();
         this->userInterface.DrawPanels();
     }
 
-    void UserOnPostRender() override
+    void OnPostRender() override
     {
-
+        this->m_scene->PostRender();
     }
 
-    void UserOnPreRender() override
+    void OnPreRender() override
     {
+        this->m_scene->PreRender();
     }
+
+    std::string_view GetAppName() const noexcept override
+    {
+        return "Hush-Editor";
+    }
+
 private:
-	Hush::UI userInterface;
-
+    Hush::UI userInterface;
+    std::unique_ptr<Hush::Scene> m_scene;
 };
 
 extern "C" bool BundledAppExists_Internal_() // NOLINT(*-identifier-naming)
@@ -58,7 +68,7 @@ extern "C" bool BundledAppExists_Internal_() // NOLINT(*-identifier-naming)
     return true;
 }
 
-extern "C" Hush::IApplication* BundledApp_Internal_() // NOLINT(*-identifier-naming)
+extern "C" Hush::IApplication *BundledApp_Internal_(Hush::HushEngine* engine) // NOLINT(*-identifier-naming)
 {
-    return new EditorApp();
+    return new EditorApp(engine);
 }

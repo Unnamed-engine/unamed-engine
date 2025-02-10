@@ -10,8 +10,8 @@
 #include <flecs.h>
 
 Hush::RawQuery::RawQuery(Scene *scene, void *query)
-    : m_scene(scene),
-      m_query(query)
+    : m_query(query),
+      m_scene(scene)
 {
 }
 
@@ -129,7 +129,7 @@ Hush::RawQuery::QueryIterator Hush::RawQuery::GetIterator()
 {
     auto world = static_cast<ecs_world_t *>(m_scene->GetWorld());
 
-    auto queryIter = QueryIterator();
+    auto queryIter = QueryIterator(m_scene);
 
     ::new (queryIter.m_iterData.data()) ecs_iter_t(ecs_query_iter(world, static_cast<ecs_query_t *>(m_query)));
 

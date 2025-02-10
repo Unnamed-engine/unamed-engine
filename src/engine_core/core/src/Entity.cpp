@@ -72,6 +72,20 @@ void Hush::Entity::Destroy(Entity &&entity)
     scene->DestroyEntity(std::move(entity));
 }
 
+std::optional<std::string_view> Hush::Entity::GetName() const
+{
+    auto *world = static_cast<ecs_world_t *>(m_ownerScene->GetWorld());
+
+    const char* name = ecs_get_name(world, m_entityId);
+
+    if (name == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return std::string_view(name);
+}
+
 void *Hush::Entity::GetSceneWorld() const
 {
     return m_ownerScene->GetWorld();

@@ -19,7 +19,7 @@
 
 namespace Hush
 {
-    class Engine;
+    class HushEngine;
 
     // TODO: this class is expected to change a lot, it's just a placeholder for now.
     // The API is not ready and I would like to think about implementing it considering scripting in the future and
@@ -28,7 +28,7 @@ namespace Hush
     {
         constexpr static std::uint16_t ORDER_BUCKET_SIZE = ISystem::MAX_ORDER + 1;
 
-        friend class Engine;
+        friend class HushEngine;
 
         friend class Entity;
 
@@ -37,7 +37,7 @@ namespace Hush
     public:
         /// Constructor.
         /// @param engine Game engine
-        Scene(Engine *engine);
+        Scene(HushEngine *engine);
 
         ~Scene();
 
@@ -162,7 +162,7 @@ namespace Hush
         /// User systems
         std::vector<std::unique_ptr<ISystem>> m_userSystems;
 
-        Engine *m_engine;
+        HushEngine *m_engine;
 
         void *m_world;
     };
