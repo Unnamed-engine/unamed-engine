@@ -40,6 +40,14 @@ namespace Hush {
 			return this->m_worldTransform;
 		}
 
+		void AddChild(std::shared_ptr<RenderableNode> child) {
+			this->m_children.emplace_back(child);
+		}
+
+		void SetParent(std::weak_ptr<RenderableNode> parent) {
+			this->m_parent = parent;
+		}
+
 	protected:
 		std::weak_ptr<RenderableNode> m_parent;
 		std::vector<std::shared_ptr<RenderableNode>> m_children;

@@ -48,13 +48,15 @@ vec3 calcIrradiance(vec3 nor) {
 
 void main() 
 {
+	vec4 texColor = texture(colorTex, inUV);
+	vec3 color = inColor * texColor.xyz;
+	float alpha = texColor.w;
+	if (alpha < materialData.alphaCutoff) {
+	    discard;
+	}
 	float lightValue = max(dot(inNormal, vec3(0.3f,1.f,0.3f)), 0.1f);
-
 	vec3 irradiance = calcIrradiance(inNormal); 
 
-
-	vec3 color = inColor * texture(colorTex,inUV).xyz;
-
-	outFragColor = vec4(color * lightValue + color * irradiance.x * vec3(0.2f) ,1.0f);
+	outFragColor = vec4(color * lightValue + color * irradiance * vec3(0.2f) , alpha);
 }
 

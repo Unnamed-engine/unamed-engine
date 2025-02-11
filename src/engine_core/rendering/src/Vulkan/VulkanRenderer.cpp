@@ -241,7 +241,8 @@ void Hush::VulkanRenderer::UpdateSceneObjects(float delta)
 {
 
     this->m_editorCamera.OnUpdate(delta);
-	this->m_mainDrawContext.clear();
+	this->m_mainDrawContext.opaqueSurfaces.clear();
+	this->m_mainDrawContext.transparentSurfaces.clear();
 	// Test stuff just to show that it works... to be refactored into a more dynamic approach
 	glm::mat4 topMatrix{ 1.0f };
     for (auto& nodeEntry : this->m_loadedNodes)
@@ -606,7 +607,7 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    std::string structurePath = "Y:\\Programming\\C++\\Hush-Engine\\res\\sponza.glb";
+    std::string structurePath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\AlphaBlendModeTest.glb";
     std::vector<std::shared_ptr<VulkanMeshNode>> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
     for (auto& node : nodeVector)
     {
@@ -745,8 +746,8 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
     this->InitBackgroundPipelines();
     this->InitMeshPipeline();
 
-	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.frag.spv";
-    constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\mesh.vert.spv";
+	constexpr std::string_view fragmentShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\mesh.frag.spv";
+    constexpr std::string_view vertexShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\mesh.vert.spv";
     this->m_metalRoughMaterial.BuildPipelines(this, fragmentShaderPath, vertexShaderPath);
 }
 
@@ -760,7 +761,7 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
 
     // layout code
     VkShaderModule computeDrawShader = nullptr;
-    constexpr std::string_view shaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\gradient_color.comp.spv";
+    constexpr std::string_view shaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\gradient_color.comp.spv";
     if (!VulkanHelper::LoadShaderModule(shaderPath, this->m_device, &computeDrawShader))
     {
         LogError("Error when building the compute shader");
@@ -804,8 +805,8 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
 
 void Hush::VulkanRenderer::InitMeshPipeline() noexcept
 {
-	constexpr std::string_view fragmentShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\tex_image.frag.spv";
-    constexpr std::string_view vertexShaderPath = "Y:\\Programming\\C++\\Hush-Engine\\res\\colored_triangle_mesh.vert.spv";
+	constexpr std::string_view fragmentShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\tex_image.frag.spv";
+    constexpr std::string_view vertexShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\colored_triangle_mesh.vert.spv";
 
 	VkShaderModule triangleFragShader;
 	if (!VulkanHelper::LoadShaderModule(fragmentShaderPath, this->m_device, &triangleFragShader)) {
@@ -1011,21 +1012,29 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
     int32_t drawCalls = 0;
 
-	for (const VkRenderObject& draw : this->m_mainDrawContext) {
+    auto drawRenderObject = [&](const VkRenderObject& draw) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 0, 1, &globalDescriptor, 0, nullptr);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 1, 1, &draw.material->materialSet, 0, nullptr);
 
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 0, 1, &globalDescriptor, 0, nullptr);
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 1, 1, &draw.material->materialSet, 0, nullptr);
+        vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-		vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-		GPUDrawPushConstants pushConstants;
-		pushConstants.vertexBuffer = draw.vertexBufferAddress;
-		pushConstants.worldMatrix = draw.transform;
-		vkCmdPushConstants(cmd, draw.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
-		vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
+        GPUDrawPushConstants pushConstants;
+        pushConstants.vertexBuffer = draw.vertexBufferAddress;
+        pushConstants.worldMatrix = draw.transform;
+        vkCmdPushConstants(cmd, draw.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
+        vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
         drawCalls++;
+    };
+
+	for (const VkRenderObject& draw : this->m_mainDrawContext.opaqueSurfaces) {
+        drawRenderObject(draw);
 	}
+
+	for (const VkRenderObject& draw : this->m_mainDrawContext.transparentSurfaces) {
+		drawRenderObject(draw);
+	}
+
 	vkCmdEndRendering(cmd);
 }
 

@@ -13,6 +13,7 @@ add_library(HushRendering OBJECT
         src/Shared/Camera.cpp
         src/Shared/ImageTexture.cpp
         src/Shared/EditorCamera.cpp
+        src/Shared/GltfLoadFunctions.cpp
         src/ImGui/VulkanImGuiForwarder.cpp
 )
 

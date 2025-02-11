@@ -11,6 +11,7 @@
 #include "VulkanMeshNode.hpp"
 #include "VulkanAllocatedBuffer.hpp"
 #include "vk_mem_alloc.hpp"
+#include "Shared/GltfLoadFunctions.hpp"
 
 Hush::Result<std::vector<std::shared_ptr<Hush::VulkanMeshNode>>, Hush::VulkanLoader::EError> Hush::VulkanLoader::LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath)
 {
@@ -31,6 +32,7 @@ Hush::Result<std::vector<std::shared_ptr<Hush::VulkanMeshNode>>, Hush::VulkanLoa
 	std::vector<uint32_t> indices;
 	std::vector<Vertex> vertices;
 	std::vector<std::shared_ptr<VulkanMeshNode>> meshes;
+	std::vector<std::shared_ptr<VulkanMeshNode>> rootNodes;
 	//TODO: render these meshes instead of the loaded nodes, or store these in there idk
 	for (const fastgltf::Mesh& mesh : loadedAsset->meshes)
 	{
@@ -39,6 +41,30 @@ Hush::Result<std::vector<std::shared_ptr<Hush::VulkanMeshNode>>, Hush::VulkanLoa
 		node->SetWorldTransform(glm::mat4{ 1.f });
 		meshes.emplace_back(node);
 	}
+
+
+	for (const fastgltf::Node& node : loadedAsset->nodes)
+	{
+		if (!node.meshIndex.has_value()) continue;
+		std::shared_ptr<VulkanMeshNode> meshNode = meshes.at(node.meshIndex.value());
+		meshNode->SetLocalTransform(GltfLoadFunctions::GetNodeTransform(node));
+	}
+
+	for (int i = 0; i < loadedAsset->nodes.size(); i++) {
+		fastgltf::Node& node = loadedAsset->nodes[i];
+		if (!node.meshIndex.has_value()) continue;
+		std::shared_ptr<VulkanMeshNode>& sceneNode = meshes[node.meshIndex.value()];
+		if (node.children.empty()) {
+			//If there are no children, we'll set the transform to global(???
+			sceneNode->SetWorldTransform(sceneNode->GetLocalTransform());
+			continue;
+		}
+		for (size_t& c : node.children) {
+			sceneNode->AddChild(meshes[c]);
+			meshes[c]->SetParent(sceneNode);
+		}
+	}
+
 	return meshes;
 }
 
@@ -59,7 +85,7 @@ std::vector<AllocatedImage> Hush::VulkanLoader::LoadAllTextures(const fastgltf::
 	std::vector<AllocatedImage> loadedTexturesResult;
 	loadedTexturesResult.reserve(asset.images.size());
 	for (const fastgltf::Image& image : asset.images) {
-		std::shared_ptr<ImageTexture> texture = TextureFromImageDataSource(asset, image);
+		std::shared_ptr<ImageTexture> texture = GltfLoadFunctions::TextureFromImageDataSource(asset, image);
 		AllocatedImage loadedImage = LoadTexture(engine, *texture.get());
 		loadedTexturesResult.emplace_back(loadedImage);
 	}
@@ -113,20 +139,20 @@ Hush::VulkanMeshNode Hush::VulkanLoader::CreateMeshFromGltfMesh(const fastgltf::
 			indicesRef.push_back(idx + static_cast<uint32_t>(initialVertex));
 			});
 
-		std::vector<glm::vec3> vertexBuffer = FindAttributeByName<glm::vec3>(primitive, asset, "POSITION");
+		std::vector<glm::vec3> vertexBuffer = GltfLoadFunctions::FindAttributeByName<glm::vec3>(primitive, asset, "POSITION");
 		for (const glm::vec3& v : vertexBuffer) {
 			Vertex vertexToAdd{};
 			vertexToAdd.position = v;
 			verticesRef.push_back(vertexToAdd);
 		}
 
-		std::vector<glm::vec3> normalBuffer = FindAttributeByName<glm::vec3>(primitive, asset, "NORMAL");
+		std::vector<glm::vec3> normalBuffer = GltfLoadFunctions::FindAttributeByName<glm::vec3>(primitive, asset, "NORMAL");
 		for (uint32_t i = 0; i < normalBuffer.size(); i++) {
 			verticesRef.at(i + initialVertex).normal = normalBuffer.at(i);
 		}
 
 		// load UVs
-		std::vector<glm::vec2> texBuffer = FindAttributeByName<glm::vec2>(primitive, asset, "TEXCOORD_0");
+		std::vector<glm::vec2> texBuffer = GltfLoadFunctions::FindAttributeByName<glm::vec2>(primitive, asset, "TEXCOORD_0");
 
 		for (uint32_t i = 0; i < texBuffer.size(); i++) {
 			verticesRef.at(i + initialVertex).uv_x = texBuffer.at(i).x;
@@ -134,7 +160,7 @@ Hush::VulkanMeshNode Hush::VulkanLoader::CreateMeshFromGltfMesh(const fastgltf::
 		}
 
 		// load vertex colors
-		std::vector<glm::vec4> colors = FindAttributeByName<glm::vec4>(primitive, asset, "COLOR_0");
+		std::vector<glm::vec4> colors = GltfLoadFunctions::FindAttributeByName<glm::vec4>(primitive, asset, "COLOR_0");
 
 		for (uint32_t i = 0; i < colors.size(); i++) {
 			verticesRef.at(i + initialVertex).color = colors.at(i);
@@ -179,21 +205,6 @@ Hush::VulkanMeshNode Hush::VulkanLoader::CreateMeshFromGltfMesh(const fastgltf::
 	return meshNode;
 }
 
-Hush::Result<const uint8_t*, Hush::VulkanLoader::EError> Hush::VulkanLoader::GetDataFromBufferSource(const fastgltf::Buffer& buffer)
-{
-	const fastgltf::sources::Vector* vectorData = std::get_if<fastgltf::sources::Vector>(&buffer.data);
-	if (vectorData != nullptr) {
-		return vectorData->bytes.data();
-	}
-	//Ok, try the ByteView
-	const fastgltf::sources::ByteView* byteData = std::get_if<fastgltf::sources::ByteView>(&buffer.data);
-	if (byteData != nullptr) {
-		return reinterpret_cast<const uint8_t*>(byteData->bytes.data());
-	}
-	//Else, idk, we don't recognize this yet
-	return EError::InvalidMeshFile;
-}
-
 std::shared_ptr<Hush::VkMaterialInstance> Hush::VulkanLoader::GenerateMaterial(size_t materialIdx, const fastgltf::Asset& asset, VulkanRenderer* engine, VulkanAllocatedBuffer* sceneMaterialBuffer, DescriptorAllocatorGrowable& allocatorPool, const std::vector<AllocatedImage>& loadedTextures)
 {
 	const fastgltf::Material& material = asset.materials.at(materialIdx);
@@ -211,13 +222,21 @@ std::shared_ptr<Hush::VkMaterialInstance> Hush::VulkanLoader::GenerateMaterial(s
 	//Scene Material buffer writing
 	VmaAllocationInfo& allocInfo = sceneMaterialBuffer->GetAllocationInfo();
 	GLTFMetallicRoughness::MaterialConstants* mappedData = static_cast<GLTFMetallicRoughness::MaterialConstants*>(allocInfo.pMappedData);
-	mappedData[materialIdx] = constants;
 
-	EMaterialPass passType = EMaterialPass::MainColor;
-	if (material.alphaMode == fastgltf::AlphaMode::Blend) {
-		passType = EMaterialPass::Transparent;
+	EMaterialPass passType = GltfLoadFunctions::GetMaterialPassFromFastGltfPass(material.alphaMode);
+	
+	//Handle custom alpha cutoffs
+	switch (passType)
+	{
+	case EMaterialPass::MainColor:
+	case EMaterialPass::Transparent:
+		constants.alphaThreshold = 0.0f;
+		break;
+	case EMaterialPass::Mask:
+		constants.alphaThreshold = material.alphaCutoff;
 	}
 
+	mappedData[materialIdx] = constants;
 	GLTFMetallicRoughness::MaterialResources materialResources;
 	// default the material textures
 	std::optional<AllocatedImage> loadedTextureToUse = LoadedTextureFromMaterial(asset, material, loadedTextures);
@@ -233,20 +252,6 @@ std::shared_ptr<Hush::VkMaterialInstance> Hush::VulkanLoader::GenerateMaterial(s
 	return std::make_shared<VkMaterialInstance>(metallicMatInstance.WriteMaterial(engine->GetVulkanDevice(), passType, materialResources, allocatorPool));
 }
 
-std::shared_ptr<Hush::ImageTexture> Hush::VulkanLoader::GetTexturePropertiesFromMaterial(const fastgltf::Asset& asset, const fastgltf::Material& material)
-{
-	if (!material.pbrData.baseColorTexture.has_value()) {
-		return nullptr;
-	}
-	size_t textureDataIdx = material.pbrData.baseColorTexture->textureIndex;
-	const fastgltf::Texture& fastgltfTexture = asset.textures.at(textureDataIdx);
-	if (!fastgltfTexture.imageIndex.has_value()) {
-		return nullptr;
-	}
-	const fastgltf::Image& image = asset.images.at(fastgltfTexture.imageIndex.value());
-	return TextureFromImageDataSource(asset, image);
-}
-
 
 std::optional<AllocatedImage> Hush::VulkanLoader::LoadedTextureFromMaterial(const fastgltf::Asset& asset, const fastgltf::Material& material, const std::vector<AllocatedImage>& loadedTextures)
 {
@@ -260,38 +265,6 @@ std::optional<AllocatedImage> Hush::VulkanLoader::LoadedTextureFromMaterial(cons
 	}
 	return loadedTextures.at(fastgltfTexture.imageIndex.value());
 }
-
-std::shared_ptr<Hush::ImageTexture> Hush::VulkanLoader::TextureFromImageDataSource(const fastgltf::Asset& asset, const fastgltf::Image& image)
-{
-	const fastgltf::sources::Vector* vectorData = std::get_if<fastgltf::sources::Vector>(&image.data);
-	if (vectorData != nullptr) {
-		return std::make_shared<ImageTexture>(reinterpret_cast<const std::byte*>(vectorData->bytes.data()), vectorData->bytes.size());
-	}
-	const fastgltf::sources::URI* uriData = std::get_if<fastgltf::sources::URI>(&image.data);
-	const fastgltf::sources::BufferView* bufferViewData = std::get_if<fastgltf::sources::BufferView>(&image.data);
-
-	// Buffer view index
-	if (bufferViewData != nullptr) {
-		
-		const fastgltf::BufferView& bufferView = asset.bufferViews.at(bufferViewData->bufferViewIndex);
-		const fastgltf::Buffer& buffer = asset.buffers.at(bufferView.bufferIndex);
-		vectorData = std::get_if<fastgltf::sources::Vector>(&buffer.data);
-		
-		if (vectorData == nullptr) {
-			return nullptr;
-		}
-
-		return std::make_shared<ImageTexture>(reinterpret_cast<const std::byte*>(vectorData->bytes.data() + bufferView.byteOffset), bufferView.byteLength);
-	}
-
-	// TODO: support for file byte offset
-	if (uriData == nullptr || uriData->fileByteOffset > 0) {
-		return nullptr;
-	}
-	return std::make_shared<ImageTexture>(uriData->uri.fspath());
-}
-
-
 
 constexpr VkFilter Hush::VulkanLoader::ExtractFilter(const fastgltf::Filter& filter)
 {
