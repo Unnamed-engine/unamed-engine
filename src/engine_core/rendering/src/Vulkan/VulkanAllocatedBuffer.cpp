@@ -44,7 +44,7 @@ VkBuffer Hush::VulkanAllocatedBuffer::GetBuffer()
     return this->m_buffer;
 }
 
-const VmaAllocationInfo& Hush::VulkanAllocatedBuffer::GetAllocationInfo() const noexcept
+VmaAllocationInfo& Hush::VulkanAllocatedBuffer::GetAllocationInfo() noexcept
 {
     return this->m_allocInfo;
 }

@@ -12,7 +12,8 @@ layout(set = 1, binding = 0) uniform GLTFMaterialData{
 
     vec4 colorFactors;
     vec4 metal_rough_factors;
-
+    float alphaCutoff;
+    
 } materialData;
 
 layout(set = 1, binding = 1) uniform sampler2D colorTex;

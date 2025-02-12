@@ -38,4 +38,4 @@
 HUSH_ASSERT(!result.has_error(), "{} error: {}", message, magic_enum::enum_name(result.error()))
 
 
-#define HUSH_STATIC_ASSERT(condition) static_assert(condition)
+#define HUSH_STATIC_ASSERT(condition, ...) static_assert(condition, #__VA_ARGS__)

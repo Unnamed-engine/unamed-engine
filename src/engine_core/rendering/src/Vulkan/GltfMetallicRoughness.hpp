@@ -8,6 +8,7 @@
 #include "VkTypes.hpp"
 #include "VkDescriptors.hpp"
 #include "VkMaterialInstance.hpp"
+#include "Shared/MaterialPass.hpp"
 
 namespace Hush {
 	class IRenderer;
@@ -20,11 +21,14 @@ namespace Hush {
 
 		struct MaterialConstants
 		{
-			glm::vec4 colorFactors;
-			glm::vec4 metal_rough_factors;
+			alignas(16) glm::vec4 colorFactors;
+			alignas(16) glm::vec4 metalRoughFactors;
+			alignas(4) float alphaThreshold;
 			// padding, we need it anyway for uniform buffers
-			glm::vec4 extra[14];
+			char padding[12];
 		};
+
+		HUSH_STATIC_ASSERT(sizeof(MaterialConstants) == 48, "Metallic Roughness size mismatch!");
 
 		struct MaterialResources
 		{
@@ -44,13 +48,23 @@ namespace Hush {
 		inline VkMaterialInstance WriteMaterial(VkDevice device, EMaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator) {
 			Hush::VkMaterialInstance matData;
 			matData.passType = pass;
-			if (pass == EMaterialPass::Transparent) {
-				matData.pipeline = &transparentPipeline;
-			}
-			else {
-				matData.pipeline = &opaquePipeline;
+			
+			switch (pass)
+			{
+			case Hush::EMaterialPass::Mask:
+
+			case Hush::EMaterialPass::MainColor:
+				matData.pipeline = &this->opaquePipeline;
+				break;
+			case Hush::EMaterialPass::Transparent:
+				matData.pipeline = &this->transparentPipeline;
+				break;
+			default:
+				HUSH_ASSERT(false, "Unkown material pass: {}", magic_enum::enum_name(pass));
+				break;
 			}
 
+			//Not initialized material layout here from VkLoader
 			matData.materialSet = descriptorAllocator.Allocate(device, this->materialLayout);
 
 

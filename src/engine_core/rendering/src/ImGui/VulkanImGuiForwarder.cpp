@@ -79,7 +79,7 @@ ImGui_ImplVulkan_InitInfo Hush::VulkanImGuiForwarder::CreateInitData(VulkanRende
     initData.PipelineRenderingCreateInfo = {};
     initData.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     initData.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-    initData.PipelineRenderingCreateInfo.pColorAttachmentFormats = vulkanRenderer->GetSwapchainImageFormat();
+    initData.PipelineRenderingCreateInfo.pColorAttachmentFormats = &vulkanRenderer->GetSwapchain().GetImageFormat();
 
     return initData;
 }

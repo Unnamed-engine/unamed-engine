@@ -63,14 +63,14 @@ void Hush::GLTFMetallicRoughness::BuildPipelines(IRenderer* engine, const std::s
 	pipelineBuilder.DisableBlending();
 	pipelineBuilder.EnableDepthTest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
-	//render format
+	// Render format
 	pipelineBuilder.SetColorAttachmentFormat(vkEngine->GetDrawImage().imageFormat);
 	pipelineBuilder.SetDepthFormat(vkEngine->GetDepthImage().imageFormat);
 
-	// finally build the pipeline
+	// Create the opaque variant
 	this->opaquePipeline.pipeline = pipelineBuilder.Build(device);
 
-	// create the transparent variant
+	// Create the transparent variant
 	pipelineBuilder.EnableBlendingAdditive();
 
 	pipelineBuilder.EnableDepthTest(false, VK_COMPARE_OP_GREATER_OR_EQUAL);

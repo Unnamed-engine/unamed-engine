@@ -1,15 +1,12 @@
 #pragma once
 #include <vulkan/vulkan_core.h>
+#include "Shared/MaterialPass.hpp"
+
 namespace Hush {
-	enum class EMaterialPass : uint8_t {
-		MainColor,
-		Transparent,
-		Other
-	};
 
 	struct VkMaterialPipeline {
 		VkPipeline pipeline;
-		VkPipelineLayout layout;
+		VkPipelineLayout layout; //Check deletion queue?
 	};
 
 	struct VkMaterialInstance {

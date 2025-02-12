@@ -60,7 +60,7 @@ void DescriptorWriter::WriteImage(int32_t binding, VkImageView image, VkSampler 
     write.descriptorType = type;
     write.pImageInfo = &info;
 
-    writes.push_back(write);
+    this->writes.push_back(write);
 }
 
 void DescriptorWriter::WriteBuffer(int32_t binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type)
@@ -81,7 +81,7 @@ void DescriptorWriter::WriteBuffer(int32_t binding, VkBuffer buffer, size_t size
     write.descriptorType = type;
     write.pBufferInfo = &info;
 
-    writes.push_back(write);
+    this->writes.push_back(write);
 }
 
 void DescriptorWriter::Clear()

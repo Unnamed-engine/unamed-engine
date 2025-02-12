@@ -5,3 +5,7 @@
 */
 
 #pragma once
+
+namespace Hush {
+
+}

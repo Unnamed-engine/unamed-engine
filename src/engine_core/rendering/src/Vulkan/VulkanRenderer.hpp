@@ -28,6 +28,8 @@
 #include "VkRenderObject.hpp"
 #include "Shared/RenderableNode.hpp"
 #include "Shared/EditorCamera.hpp"
+#include "VulkanSwapchain.hpp"
+#include "DrawContext.hpp"
 
 ///@brief Double frame buffering, allows for the GPU and CPU to work in parallel. NOTE: increase to 3 if experiencing
 /// jittery framerates
@@ -68,6 +70,8 @@ namespace Hush
 
         void NewUIFrame() const noexcept override;
 
+        void EndUIFrame() const noexcept override;
+
         void HandleEvent(const SDL_Event* event) noexcept override;
 
         void UpdateSceneObjects(float delta) override;
@@ -82,6 +86,18 @@ namespace Hush
 
         /* CONSTANT GETTERS */
 
+		[[nodiscard]] VkSampler GetDefaultSamplerLinear() noexcept;
+
+		[[nodiscard]] VkSampler GetDefaultSamplerNearest() noexcept;
+
+        [[nodiscard]] AllocatedImage GetDefaultWhiteImage() const noexcept;
+
+        [[nodiscard]] GLTFMetallicRoughness& GetMetalRoughMaterial() noexcept;
+
+        [[nodiscard]] DescriptorAllocatorGrowable& GlobalDescriptorAllocator() noexcept;
+
+        [[nodiscard]] VmaAllocator GetVmaAllocator() noexcept;
+
         [[nodiscard]] VkInstance GetVulkanInstance() noexcept;
 
         [[nodiscard]] VkDevice GetVulkanDevice() noexcept;
@@ -89,25 +105,35 @@ namespace Hush
         [[nodiscard]] VkDescriptorSetLayout GetGpuSceneDataDescriptorLayout() noexcept;
 
         [[nodiscard]] const AllocatedImage& GetDrawImage() const noexcept;
+        
+        //Non const variant
+        [[nodiscard]] AllocatedImage& GetDrawImage() noexcept;
 
         [[nodiscard]] const AllocatedImage& GetDepthImage() const noexcept;
+        
+        //Non const variant
+        [[nodiscard]] AllocatedImage& GetDepthImage() noexcept;
 
         [[nodiscard]] VkPhysicalDevice GetVulkanPhysicalDevice() const noexcept;
 
         [[nodiscard]] VkQueue GetGraphicsQueue() const noexcept;
 
-        VkFormat* GetSwapchainImageFormat() noexcept;
-
         [[nodiscard]] void* GetWindowContext() const noexcept override;
 
+        VulkanSwapchain& GetSwapchain();
+
         GPUMeshBuffers UploadMesh(const std::vector<uint32_t>& indices, const std::vector<Vertex>& vertices);
+
+		AllocatedImage CreateImage(const void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+
+        VkSurfaceKHR GetSurface() noexcept;
+
+        VulkanDeletionQueue GetDeletionQueue() noexcept;
 
     private:
         void Configure(vkb::Instance vkbInstance);
 
         void CreateSyncObjects();
-
-        void DestroySwapChain();
 
         VkSubmitInfo2 SubmitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo,
             VkSemaphoreSubmitInfo* waitSemaphoreInfo);
@@ -149,7 +175,6 @@ namespace Hush
 
 		AllocatedImage CreateImage(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 
-		AllocatedImage CreateImage(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
 
         void DestroyImage(const AllocatedImage& img);
 
@@ -166,7 +191,6 @@ namespace Hush
         VkCommandPool m_immediateCommandPool = nullptr;
         VkDescriptorSet m_drawImageDescriptors = nullptr;
         VkDescriptorSetLayout m_drawImageDescriptorLayout = nullptr;
-        VkSwapchainKHR m_swapChain{};
         VkPipeline m_gradientPipeline = nullptr;
         VkPipelineLayout m_gradientPipelineLayout = nullptr;
 		VkPipelineLayout m_trianglePipelineLayout = nullptr;
@@ -182,11 +206,7 @@ namespace Hush
 
         uint32_t m_graphicsQueueFamily = 0u;
         DescriptorAllocatorGrowable m_globalDescriptorAllocator{};
-
-        VkFormat m_swapchainImageFormat = VkFormat::VK_FORMAT_UNDEFINED;
-        std::vector<VkImage> m_swapchainImages{};
-        std::vector<VkImageView> m_swapchainImageViews{};
-        VkExtent2D m_swapChainExtent{};
+        
         VkExtent2D m_drawExtent{};
         float m_renderScale = 1.0f;
         uint32_t m_width = 0u;
@@ -195,7 +215,7 @@ namespace Hush
         AllocatedImage m_drawImage{};
         AllocatedImage m_depthImage{};
 
-        std::vector<VkRenderObject> m_mainDrawContext;
+        DrawContext m_mainDrawContext;
         std::unordered_map<std::string, std::shared_ptr<RenderableNode>> m_loadedNodes;
 
         // Test stuff
@@ -223,5 +243,6 @@ namespace Hush
         VulkanDeletionQueue m_mainDeletionQueue{};
         VmaAllocator m_allocator = nullptr; // vma lib allocator
         bool m_resizeRequested = false;
+        VulkanSwapchain m_swapchain{};
     };
 } // namespace Hush

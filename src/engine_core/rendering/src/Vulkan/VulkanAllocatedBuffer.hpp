@@ -26,7 +26,7 @@ namespace Hush
 
         [[nodiscard]] VkBuffer GetBuffer();
 
-        [[nodiscard]] const VmaAllocationInfo& GetAllocationInfo() const noexcept;
+        [[nodiscard]] VmaAllocationInfo& GetAllocationInfo() noexcept;
 
     private:
         VkBuffer m_buffer = nullptr;
