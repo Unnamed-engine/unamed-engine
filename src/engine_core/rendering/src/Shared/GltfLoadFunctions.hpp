@@ -6,7 +6,7 @@
 #include "MaterialPass.hpp"
 #include "ImageTexture.hpp"
 #include "Logger.hpp"
-#include <magic_enum.hpp>
+#include <magic_enum/magic_enum.hpp>
 
 namespace Hush::GltfLoadFunctions {
 
@@ -28,11 +28,11 @@ namespace Hush::GltfLoadFunctions {
 	inline std::vector<BufferType> FindAttributeByName(const fastgltf::Primitive& primitive, const fastgltf::Asset& asset, const std::string_view& attributeName)
 	{
 		std::vector<BufferType> result;
-		const fastgltf::Primitive::attribute_type* attribute = primitive.findAttribute(attributeName);
+        const fastgltf::Attribute *attribute = primitive.findAttribute(attributeName);
 		if (attribute == primitive.attributes.end()) {
 			return result;
 		}
-		const fastgltf::Accessor& foundAccessor = asset.accessors[attribute->second];
+		const fastgltf::Accessor& foundAccessor = asset.accessors[attribute->accessorIndex];
 		const fastgltf::BufferView& accessorBufferView = asset.bufferViews[foundAccessor.bufferViewIndex.value()];
 		const fastgltf::Buffer& buffer = asset.buffers[accessorBufferView.bufferIndex];
 		result.reserve(foundAccessor.count);

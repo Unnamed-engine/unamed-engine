@@ -1,30 +1,27 @@
 #include "GltfLoadFunctions.hpp"
 #include "Vector3Math.hpp"
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 #include "MaterialPass.hpp"
 
 
 glm::mat4 Hush::GltfLoadFunctions::GetNodeTransform(const fastgltf::Node& node)
 {
-	const fastgltf::Node::TransformMatrix* matrix = std::get_if<fastgltf::Node::TransformMatrix>(&node.transform);
+    const fastgltf::math::mat<float, 4, 4> *const matrix = std::get_if<fastgltf::math::fmat4x4>(&node.transform);
 	if (matrix != nullptr) {
 		// Matrix is column-major, glm expects column-major
 		return *reinterpret_cast<const glm::mat4*>(matrix->data());
 	}
-	const fastgltf::Node::TRS* trsMatrix = std::get_if<fastgltf::Node::TRS>(&node.transform);
+	const fastgltf::TRS* trsMatrix = std::get_if<fastgltf::TRS>(&node.transform);
 	if (trsMatrix == nullptr) {
 		return glm::mat4(1.0f);
 	}
 	// Use TRS components
-	glm::vec3 translation = trsMatrix->translation.empty() ?
-		Vector3Math::ZERO : *reinterpret_cast<const glm::vec3*>(trsMatrix->translation.data());
+	glm::vec3 translation = *reinterpret_cast<const glm::vec3*>(trsMatrix->translation.data());
 
-	glm::quat rotation = trsMatrix->rotation.empty() ?
-		glm::quat(1.0f, 0.0f, 0.0f, 0.0f) :
-		*reinterpret_cast<const glm::quat*>(trsMatrix->rotation.data());
+	glm::quat rotation = *reinterpret_cast<const glm::quat*>(trsMatrix->rotation.value_ptr());
 
-	glm::vec3 scale = trsMatrix->scale.empty() ?
-		Vector3Math::ONE : *reinterpret_cast<const glm::vec3*>(trsMatrix->scale.data());
+	glm::vec3 scale = *reinterpret_cast<const glm::vec3*>(trsMatrix->scale.data());
 
 	return glm::translate(glm::mat4(1.0f), translation) *
 		glm::mat4_cast(rotation) *
@@ -81,7 +78,7 @@ Hush::Result<const uint8_t*, Hush::GltfLoadFunctions::EError> Hush::GltfLoadFunc
 {
 	const fastgltf::sources::Vector* vectorData = std::get_if<fastgltf::sources::Vector>(&buffer.data);
 	if (vectorData != nullptr) {
-		return vectorData->bytes.data();
+		return reinterpret_cast<const std::uint8_t*> (vectorData->bytes.data());
 	}
 	//Ok, try the ByteView
 	const fastgltf::sources::ByteView* byteData = std::get_if<fastgltf::sources::ByteView>(&buffer.data);
