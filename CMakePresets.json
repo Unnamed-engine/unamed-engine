@@ -33,7 +33,8 @@
       ],
       "displayName": "Windows x64 debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "VCPKG_BUILD_TYPE": "Debug"
       }
     },
     {
@@ -43,7 +44,8 @@
       ],
       "displayName": "Windows x64 Release",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_BUILD_TYPE": "Release"
       }
     }
   ]

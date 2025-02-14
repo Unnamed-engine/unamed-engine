@@ -9,6 +9,8 @@ add_library(HushUtils OBJECT
         src/SharedLibrary.cpp
 )
 
+add_library(Hush::Utils ALIAS HushUtils)
+
 target_link_libraries(HushUtils PUBLIC HushLog outcome::hl)
 
 target_include_directories(HushUtils PUBLIC src)

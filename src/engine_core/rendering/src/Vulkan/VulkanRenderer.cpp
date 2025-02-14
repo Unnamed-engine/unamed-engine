@@ -20,6 +20,7 @@
 #elif HUSH_PLATFORM_LINUX
 #endif
 #define VOLK_IMPLEMENTATION
+
 #include "Assertions.hpp"
 #include "ImGui/VulkanImGuiForwarder.hpp"
 #include "VkUtilsFactory.hpp"
@@ -31,6 +32,7 @@
 #include "VulkanAllocatedBuffer.hpp"
 #include "GPUMeshBuffers.hpp"
 #include "VulkanLoader.hpp"
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/transform.hpp>
 #include "VulkanMeshNode.hpp"
 

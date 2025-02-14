@@ -5,9 +5,7 @@
 */
 
 #pragma once
-#include "DotnetHost.hpp"
 #include "IApplication.hpp"
-#include "WindowRenderer.hpp"
 
 #include <string_view>
 

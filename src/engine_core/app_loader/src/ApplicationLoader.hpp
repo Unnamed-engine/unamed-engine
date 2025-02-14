@@ -20,5 +20,5 @@ namespace Hush
     /// If a static application is bundled with the engine, it won't attempt to load a shared library.
     ///
     /// @return A pointer to the loaded application.
-    std::unique_ptr<IApplication> LoadApplication();
+    std::unique_ptr<IApplication> LoadApplication(HushEngine *engine);
 } // namespace Hush

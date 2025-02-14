@@ -1,11 +1,12 @@
 /*! \file IApplication.hpp
-\author Alan Ramirez
+    \author Alan Ramirez
     \date 2024-09-21
     \brief Application meant to be run by Hush
 */
 
 #pragma once
 
+#include "Scene.hpp"
 #include <string>
 #include <string_view>
 
@@ -13,8 +14,8 @@ namespace Hush
 {
     class IApplication
     {
-      public:
-        IApplication(std::string_view appName) : m_appName(appName)
+    public:
+        IApplication()
         {
         }
 
@@ -27,7 +28,9 @@ namespace Hush
 
         virtual void Init() = 0;
 
-        virtual void Update() = 0;
+        virtual void Update(float delta) = 0;
+
+        virtual void FixedUpdate(float delta) = 0;
 
         virtual void OnPreRender() = 0;
 
@@ -35,12 +38,7 @@ namespace Hush
 
         virtual void OnPostRender() = 0;
 
-        [[nodiscard]] std::string GetAppName() const
-        {
-            return m_appName;
-        }
-
-    private:
-        std::string m_appName;
+        [[nodiscard]]
+        virtual std::string_view GetAppName() const noexcept = 0;
     };
 } // namespace Hush

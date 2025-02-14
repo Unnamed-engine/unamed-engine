@@ -1,9 +1,9 @@
 #define VK_NO_PROTOTYPES
 #include <volk.h>
 #include "VulkanLoader.hpp"
-#include <fastgltf/parser.hpp>
 #include <fastgltf/types.hpp>
 #include <fastgltf/tools.hpp>
+#include <fastgltf/core.hpp>
 #include "VkTypes.hpp"
 #include "VulkanRenderer.hpp"
 #include "Shared/ImageTexture.hpp"
@@ -15,17 +15,25 @@
 
 Hush::Result<std::vector<std::shared_ptr<Hush::VulkanMeshNode>>, Hush::VulkanLoader::EError> Hush::VulkanLoader::LoadGltfMeshes(VulkanRenderer* engine, std::filesystem::path filePath)
 {
-	fastgltf::GltfDataBuffer data;
-	if (!std::filesystem::exists(filePath)) {
-		return EError::FileNotFound;
-	}
-	data.loadFromFile(filePath);
+	if (!std::filesystem::exists(filePath))
+    {
+        return EError::FileNotFound;
+    }
 
-	constexpr fastgltf::Options loadingOptions = fastgltf::Options::LoadGLBBuffers | fastgltf::Options::LoadExternalBuffers;
+    fastgltf::Expected<fastgltf::GltfDataBuffer> loaded_data = fastgltf::GltfDataBuffer::FromPath(filePath);
 
-	fastgltf::Parser parser{};
+    if (!loaded_data)
+    {
+        return EError::InvalidMeshFile;
+    }
 
-	fastgltf::Expected<fastgltf::Asset> loadedAsset = parser.loadBinaryGLTF(&data, filePath.parent_path(), loadingOptions);
+    fastgltf::GltfDataBuffer &data = loaded_data.get();
+
+    constexpr fastgltf::Options loadingOptions = fastgltf::Options::LoadExternalBuffers;
+
+    fastgltf::Parser parser{};
+
+    fastgltf::Expected<fastgltf::Asset> loadedAsset = parser.loadGltfBinary(data, filePath.parent_path(), loadingOptions);
 
 	HUSH_ASSERT(loadedAsset, "GLTF asset at {} not properly loaded, error: {}!", filePath.string(), fastgltf::getErrorMessage(loadedAsset.error()));
 	
