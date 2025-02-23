@@ -7,12 +7,10 @@ Hush::Camera::Camera(const glm::mat4 &projectionMat, const glm::mat4 &unreversed
 
 Hush::Camera::Camera(float degFov, float width, float height, float nearP, float farP) noexcept
 {
-    this->m_projectionMatrix = glm::perspective(glm::radians(degFov), width / height, farP, nearP);
-}
-
-glm::mat4 Hush::Camera::GetProjectionMatrix() const noexcept
-{
-    return this->m_projectionMatrix;
+    this->m_fov = degFov;
+    this->m_viewportSize = { width, height };
+    this->m_nearPlane = nearP;
+    this->m_farPlane = farP;
 }
 
 const glm::mat4 &Hush::Camera::GetUnreversedProjectionMatrix() const noexcept

@@ -193,7 +193,7 @@ void Hush::VulkanRenderer::Draw(float delta)
     VkImage currentImage = this->m_swapchain.GetImages().at(swapchainImageIndex);
 
     this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    //this->DrawBackground(cmd);
+    this->DrawBackground(cmd);
     //Transition
 	this->TransitionImage(cmd, this->m_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	this->TransitionImage(cmd, this->m_depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
@@ -258,7 +258,7 @@ void Hush::VulkanRenderer::UpdateSceneObjects(float delta)
 	this->m_sceneData.view = viewMatrix;
 	// camera projection
 	//this->m_sceneData.proj = this->m_editorCamera.GetProjectionMatrix();
-	this->m_sceneData.proj = glm::perspective(glm::radians(70.f), (float)this->m_width / (float)this->m_height, 10000.f, 0.1f);
+	this->m_sceneData.proj = this->m_editorCamera.GetProjectionMatrix();
 
 	// invert the Y direction on projection matrix so that we are more similar
 	// to opengl and gltf axis
@@ -1027,7 +1027,7 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
     int32_t drawCalls = 0;
 
-    this->DrawGrid(cmd, globalDescriptor);
+    //this->DrawGrid(cmd, globalDescriptor);
 
     auto drawRenderObject = [&](const VkRenderObject& draw) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
@@ -1078,11 +1078,10 @@ void Hush::VulkanRenderer::DrawBackground(VkCommandBuffer cmd) noexcept
 void Hush::VulkanRenderer::DrawGrid(VkCommandBuffer cmd, VkDescriptorSet globalDescriptor)
 {
     ShaderMaterial* shaderMat = this->m_gridEffect.GetMaterial();
-	
-    shaderMat->SetProperty("view", this->m_editorCamera.GetViewMatrix());
-	shaderMat->SetProperty("proj", this->m_editorCamera.GetProjectionMatrix());
-	shaderMat->SetProperty("pos", this->m_editorCamera.GetPosition());
-
+	glm::mat4 proj = this->m_editorCamera.GetProjectionMatrix();
+	proj[1][1] *= -1;
+	glm::mat4 viewproj = proj * this->m_editorCamera.GetProjectionMatrix();
+	shaderMat->SetProperty("viewproj", viewproj);
     this->m_gridEffect.RecordCommands(cmd, globalDescriptor);
 }
 

@@ -19,8 +19,10 @@ namespace Hush
         Camera(float degFov, float width, float height, float nearP, float farP) noexcept;
         virtual ~Camera() = default;
 
-        glm::mat4 GetProjectionMatrix() const noexcept;
-
+        [[nodiscard]] inline glm::mat4 GetProjectionMatrix() const noexcept {
+   			return glm::perspective(glm::radians(this->m_fov), this->m_viewportSize.x / this->m_viewportSize.y, this->m_farPlane, this->m_nearPlane);
+        }
+        
         [[nodiscard]] const glm::mat4 &GetUnreversedProjectionMatrix() const noexcept;
 
         void SetProjectionMatrix(glm::mat4 projection, glm::mat4 unReversedProjection);
@@ -32,6 +34,10 @@ namespace Hush
         // NOLINTNEXTLINE
         float m_exposure = 0.8f; //Aribtrary value (inspired from the Hazel Engine)
       private:
+      	float m_fov;
+      	glm::vec2 m_viewportSize;
+      	float m_nearPlane;
+      	float m_farPlane;
         glm::mat4 m_projectionMatrix = glm::mat4(1.0f);
         // Currently only needed for shadow maps and ImGuizmo
         glm::mat4 m_unreversedProjectionMatrix = glm::mat4(1.0f);
