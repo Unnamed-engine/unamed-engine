@@ -9,7 +9,6 @@
 #include "VulkanRenderer.hpp"
 #include "Logger.hpp"
 #include "Platform.hpp"
-#include "WindowManager.hpp"
 
 #include "Vulkan/VkTypes.hpp"
 
@@ -37,6 +36,7 @@
 #include "VulkanMeshNode.hpp"
 #include "VulkanFullScreenPass.hpp"
 #include <Shared/ShaderMaterial.hpp>
+#include "Vector3Math.hpp"
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -253,11 +253,9 @@ void Hush::VulkanRenderer::UpdateSceneObjects(float delta)
 	    nodeEntry.second->Draw(topMatrix, &this->m_mainDrawContext);
     }
 
-    glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), glm::vec3{1.0f});
+    glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), Vector3Math::ONE);
     glm::mat4 viewMatrix = this->m_editorCamera.GetViewMatrix() * scaleMat;
 	this->m_sceneData.view = viewMatrix;
-	// camera projection
-	//this->m_sceneData.proj = this->m_editorCamera.GetProjectionMatrix();
 	this->m_sceneData.proj = this->m_editorCamera.GetProjectionMatrix();
 
 	// invert the Y direction on projection matrix so that we are more similar
@@ -611,7 +609,8 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    std::string structurePath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\AlphaBlendModeTest.glb";
+    //std::string structurePath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\AlphaBlendModeTest.glb";
+    std::string structurePath = R"(C:\Users\nefes\Personal\Hush-Engine\res\Duck.glb)";
     std::vector<std::shared_ptr<VulkanMeshNode>> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
     for (auto& node : nodeVector)
     {
@@ -1027,7 +1026,7 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
     int32_t drawCalls = 0;
 
-    //this->DrawGrid(cmd, globalDescriptor);
+    this->DrawGrid(cmd, globalDescriptor);
 
     auto drawRenderObject = [&](const VkRenderObject& draw) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
