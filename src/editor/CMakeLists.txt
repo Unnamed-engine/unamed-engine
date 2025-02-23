@@ -12,7 +12,7 @@ add_executable(HushEditor
         src/EditorApp.cpp
 )
 
-target_link_libraries(HushEditor PRIVATE HushEngine HushAppLoader imgui)
+target_link_libraries(HushEditor PRIVATE HushEngine Hush::AppLoader Hush::Core imgui)
 
 # Copy assembly-test.runtimeconfig.json to the output directory
 add_custom_command(TARGET HushEditor POST_BUILD

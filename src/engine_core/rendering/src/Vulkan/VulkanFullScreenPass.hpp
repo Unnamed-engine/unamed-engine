@@ -18,7 +18,7 @@ namespace Hush {
 		ShaderMaterial* GetMaterial();
 
 	private:
-		VulkanRenderer* m_renderer;
+		VulkanRenderer* m_renderer = nullptr;
 		std::shared_ptr<ShaderMaterial> m_materialInstance;
 	};
 }

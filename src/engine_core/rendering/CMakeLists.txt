@@ -12,10 +12,11 @@ add_library(HushRendering OBJECT
         src/Vulkan/VulkanSwapchain.cpp
         src/Vulkan/VulkanFullScreenPass.cpp
         src/Shared/Camera.cpp
+        src/Shared/ShaderMaterial.cpp
         src/Shared/ImageTexture.cpp
         src/Shared/EditorCamera.cpp
+        src/Shared/GltfLoadFunctions.cpp
         src/ImGui/VulkanImGuiForwarder.cpp
-        src/Shared/ShaderMaterial.cpp
 )
 
 # This is the default renderer and should be switched accordingly
@@ -30,8 +31,8 @@ target_link_libraries(HushRendering PUBLIC
         Vulkan::Vulkan
         vk-bootstrap::vk-bootstrap
         glm::glm
+        unofficial::spirv-reflect
         fastgltf::fastgltf
-        unofficial::spirv-reflect::spirv-reflect
         HushLog
         HushUtils
         HushInput

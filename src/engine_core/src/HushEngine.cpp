@@ -12,24 +12,20 @@ Hush::HushEngine::~HushEngine()
 
 void Hush::HushEngine::Run()
 {
-    this->m_app = LoadApplication();
+    this->m_app = LoadApplication(this);
 
     this->m_isApplicationRunning = true;
-    WindowRenderer mainRenderer(m_app->GetAppName().c_str());
+    WindowRenderer mainRenderer(m_app->GetAppName().data());
     IRenderer *rendererImpl = mainRenderer.GetInternalRenderer();
 
     // Initialize any static resources we need
     this->Init();
 
-    this->m_app->Init();
-    
-    std::chrono::microseconds elapsed;
-
-    constexpr float microToSeconds = 10000000.0f;
+    std::chrono::steady_clock::duration elapsed;
 
     while (this->m_isApplicationRunning)
     {
-        std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
+        std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
         mainRenderer.HandleEvents(&this->m_isApplicationRunning);
         // TODO: Change this to the window renderer
         if (!mainRenderer.IsActive())
@@ -39,7 +35,9 @@ void Hush::HushEngine::Run()
             continue;
         }
 
-        this->m_app->Update();
+        const float deltaTime = std::chrono::duration<float>(elapsed).count();
+
+        this->m_app->Update(deltaTime);
 
         this->m_app->OnPreRender();
 
@@ -47,12 +45,12 @@ void Hush::HushEngine::Run()
 
         this->m_app->OnRender();
 
-        rendererImpl->Draw(elapsed.count() / microToSeconds);
+        rendererImpl->Draw(deltaTime);
 
         this->m_app->OnPostRender();
 
-        std::chrono::system_clock::time_point end = std::chrono::system_clock::now();
-        elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        elapsed = end - start;
     }
 }
 
@@ -63,4 +61,5 @@ void Hush::HushEngine::Quit()
 
 void Hush::HushEngine::Init()
 {
+    this->m_app->Init();
 }

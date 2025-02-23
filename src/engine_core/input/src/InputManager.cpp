@@ -1,6 +1,6 @@
 #include "InputManager.hpp"
 #include "Logger.hpp"
-#include <magic_enum.hpp>
+#include <magic_enum/magic_enum.hpp>
 #include <SDL2/SDL_mouse.h>
 
 #define IS_CURRENTLY_PRESSED(key) (key == EKeyState::Pressed || key == EKeyState::Held)

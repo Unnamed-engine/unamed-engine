@@ -29,5 +29,8 @@ find_package(fastgltf CONFIG REQUIRED)
 find_package(Catch2 CONFIG REQUIRED)
 include(Catch)
 
+# Flecs
+find_package(flecs CONFIG REQUIRED)
+
 # SPIR-V reflect
 find_package(unofficial-spirv-reflect CONFIG REQUIRED)

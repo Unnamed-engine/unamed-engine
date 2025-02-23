@@ -10,7 +10,7 @@
 
 #include "Renderer.hpp"
 #include "Assertions.hpp"
-#include <magic_enum.hpp>
+#include <magic_enum/magic_enum.hpp>
 #include "FrameData.hpp"
 #include "VkTypes.hpp"
 #include "VulkanDeletionQueue.hpp"
@@ -30,6 +30,7 @@
 #include "Shared/EditorCamera.hpp"
 #include "VulkanSwapchain.hpp"
 #include "VulkanFullScreenPass.hpp"
+#include "DrawContext.hpp"
 
 ///@brief Double frame buffering, allows for the GPU and CPU to work in parallel. NOTE: increase to 3 if experiencing
 /// jittery framerates
@@ -217,7 +218,7 @@ namespace Hush
         AllocatedImage m_drawImage{};
         AllocatedImage m_depthImage{};
 
-        std::vector<VkRenderObject> m_mainDrawContext;
+        DrawContext m_mainDrawContext;
         std::unordered_map<std::string, std::shared_ptr<RenderableNode>> m_loadedNodes;
 
         // Test stuff

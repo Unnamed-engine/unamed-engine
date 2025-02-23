@@ -20,6 +20,7 @@
 #elif HUSH_PLATFORM_LINUX
 #endif
 #define VOLK_IMPLEMENTATION
+
 #include "Assertions.hpp"
 #include "ImGui/VulkanImGuiForwarder.hpp"
 #include "VkUtilsFactory.hpp"
@@ -31,9 +32,11 @@
 #include "VulkanAllocatedBuffer.hpp"
 #include "GPUMeshBuffers.hpp"
 #include "VulkanLoader.hpp"
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/transform.hpp>
 #include "VulkanMeshNode.hpp"
-#include "Shared/ShaderMaterial.hpp"
+#include "VulkanFullScreenPass.hpp"
+#include <Shared/ShaderMaterial.hpp>
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -241,7 +244,8 @@ void Hush::VulkanRenderer::HandleEvent(const SDL_Event *event) noexcept
 void Hush::VulkanRenderer::UpdateSceneObjects(float delta)
 {
     this->m_editorCamera.OnUpdate(delta);
-	this->m_mainDrawContext.clear();
+	this->m_mainDrawContext.opaqueSurfaces.clear();
+	this->m_mainDrawContext.transparentSurfaces.clear();
 	// Test stuff just to show that it works... to be refactored into a more dynamic approach
 	glm::mat4 topMatrix{ 1.0f };
     for (auto& nodeEntry : this->m_loadedNodes)
@@ -607,11 +611,9 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    std::string structurePath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\sponza.glb";
-    using MeshVector_t = std::vector<std::shared_ptr<VulkanMeshNode>>;
-    Result<MeshVector_t, VulkanLoader::EError> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath);
-    HUSH_RESULT_ASSERT(nodeVector, "Error loading meshes");
-    for (auto& node : nodeVector.value())
+    std::string structurePath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\AlphaBlendModeTest.glb";
+    std::vector<std::shared_ptr<VulkanMeshNode>> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
+    for (auto& node : nodeVector)
     {
         this->m_loadedNodes[node->GetMesh().name] = node;
     }
@@ -1027,21 +1029,29 @@ void Hush::VulkanRenderer::DrawGeometry(VkCommandBuffer cmd)
 
     this->DrawGrid(cmd, globalDescriptor);
 
-	for (const VkRenderObject& draw : this->m_mainDrawContext) {
+    auto drawRenderObject = [&](const VkRenderObject& draw) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 0, 1, &globalDescriptor, 0, nullptr);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 1, 1, &draw.material->materialSet, 0, nullptr);
 
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 0, 1, &globalDescriptor, 0, nullptr);
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 1, 1, &draw.material->materialSet, 0, nullptr);
+        vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-		vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-		GPUDrawPushConstants pushConstants;
-		pushConstants.vertexBuffer = draw.vertexBufferAddress;
-		pushConstants.worldMatrix = draw.transform;
-		vkCmdPushConstants(cmd, draw.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
-		vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
+        GPUDrawPushConstants pushConstants;
+        pushConstants.vertexBuffer = draw.vertexBufferAddress;
+        pushConstants.worldMatrix = draw.transform;
+        vkCmdPushConstants(cmd, draw.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
+        vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
         drawCalls++;
+    };
+
+	for (const VkRenderObject& draw : this->m_mainDrawContext.opaqueSurfaces) {
+        drawRenderObject(draw);
 	}
+
+	for (const VkRenderObject& draw : this->m_mainDrawContext.transparentSurfaces) {
+		drawRenderObject(draw);
+	}
+
 	vkCmdEndRendering(cmd);
 }
 

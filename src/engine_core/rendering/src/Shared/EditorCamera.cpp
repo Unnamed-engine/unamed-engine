@@ -1,8 +1,10 @@
 #include "EditorCamera.hpp"
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/transform.hpp>
 #include "InputManager.hpp"
 #include <glm/gtx/quaternion.hpp>
-
+#include "Vector3Math.hpp"
+#include "Logger.hpp"
 
 Hush::EditorCamera::EditorCamera(float degFov, float width, float height, float nearP, float farP) : Camera(degFov, width, height, nearP, farP)
 {
@@ -19,8 +21,7 @@ void Hush::EditorCamera::OnUpdate(float delta)
 	glm::vec3 forward = -glm::vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
 
 	glm::vec3 cameraDir(0.f);
-	float speed = 1000.0f; // Adjust speed as necessary
-
+	
 	if (InputManager::IsKeyDown(EKeyCode::W)) {
 		cameraDir += forward;
 	}
@@ -45,10 +46,16 @@ void Hush::EditorCamera::OnUpdate(float delta)
 		this->m_position += forward * InputManager::GetMouseScrollAcceleration().y * zoomSpeed * delta;
 	}
 
-	if (cameraDir != glm::vec3{ 0.0f }) {
+	if (cameraDir != Vector3Math::ZERO) {
+		//constexpr float maxSpeed = 5000.0F;
+		constexpr float maxSpeed = 20.0F;
+		this->m_blendValue = MathUtils::Clamp(this->m_blendValue + delta, 0.0F, 1.0F);
+		float speed = maxSpeed * ApplyAccelerationCurve(this->m_blendValue);
 		this->m_position += glm::normalize(cameraDir) * speed * delta;
 	}
-
+	else {
+		this->m_blendValue = 0.0f;
+	}
 	if (!InputManager::GetMouseButtonPressed(EMouseButton::Right)) {
 		return;
 	}
@@ -72,6 +79,19 @@ glm::mat4 Hush::EditorCamera::GetOrientationMatrix() const noexcept
 glm::vec3 Hush::EditorCamera::GetPosition() const noexcept
 {
 	return this->m_position;
+}
+
+float Hush::EditorCamera::ApplyAccelerationCurve(float blend)
+{
+	//From a custom asymmetrical sigmoidal curve, formula approximated by: https://mycurvefit.com/
+	//Raw formula: y = 1.082116 + (0.02923327 - 1.082116)/(1 + (x/0.2473429)^3.32689)^0.5257619
+	constexpr float offset = 1.082116f;
+	constexpr float numerator = 0.02923327f - 1.082116f;
+	constexpr float c = 0.2473429f;
+	constexpr float b = 3.32689f;
+	constexpr float m = 0.5257619f;
+	float expVariantFraction = MathUtils::Pow(blend / c, b);
+	return offset + (numerator / MathUtils::Pow(1.0f + expVariantFraction, m));
 }
 
 glm::mat4 Hush::EditorCamera::GetViewMatrix() const noexcept

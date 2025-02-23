@@ -92,7 +92,7 @@ namespace Hush {
 			return *reinterpret_cast<T*>(dataStartingPoint);
 		}
 
-		const GraphicsApiMaterialInstance& GetInternalMaterial() const;
+		[[nodiscard]] const GraphicsApiMaterialInstance& GetInternalMaterial() const;
 
 	private:
 		Result<std::vector<ShaderBindings>, EError> ReflectShader(std::span<std::uint32_t> shaderBinary);

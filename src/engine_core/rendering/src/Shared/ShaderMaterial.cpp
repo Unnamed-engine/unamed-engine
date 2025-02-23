@@ -1,6 +1,6 @@
 #include "ShaderMaterial.hpp"
-#include <spirv_reflect.h>
-#include <magic_enum.hpp>
+#include <spirv-reflect/spirv_reflect.h>
+#include <magic_enum/magic_enum.hpp>
 
 #ifdef HUSH_VULKAN_IMPL
 #define VK_NO_PROTOTYPES
