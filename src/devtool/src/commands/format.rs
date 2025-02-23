@@ -56,7 +56,7 @@ impl FormatCommand {
                 .filter(|f| !f.starts_with("third_party"))
                 .collect::<Vec<_>>()
         } else {
-            get_project_files(vec!["*.c", "*.cpp", "*.h", "*.hpp"], !self.all_files)?
+            get_project_files(filter, !self.all_files)?
                 .into_iter()
                 .filter(|f| !f.starts_with("third_party"))
                 .collect::<Vec<_>>()
