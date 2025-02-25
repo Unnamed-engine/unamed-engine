@@ -1,10 +1,12 @@
 #pragma once
+#include <cstring>
 #include <filesystem>
 #include <span>
 #include <unordered_map>
 #include "ShaderBindings.hpp"
 #include "Result.hpp"
 #include "Assertions.hpp"
+
 
 class SpvReflectTypeDescription;
 
@@ -59,17 +61,14 @@ namespace Hush {
 		template<class T>
 		inline void SetProperty(const std::string_view& name, T value) {
 			// Search for a binding with the name passed onto the func
+			constexpr size_t valueSize = sizeof(T);
 			const ShaderBindings& binding = this->FindBinding(name);
-			// Compare the binding type, and send that to the appropriate vector buffer
-			// Select the vector buffer
-			std::vector<std::byte>& vecBuffer = binding.type == ShaderBindings::EBindingType::UniformBufferMember
-				? this->m_uniformBufferData : this->m_shaderInputData;
-			// Assert that it is initialized size() > 0
-			HUSH_ASSERT(vecBuffer.size() > 0, "Material buffer is not initialized! Forgot to call LoadShaders?");
+			HUSH_ASSERT(this->m_uniformBufferMappedData != nullptr, "Material buffer is not initialized! Forgot to call LoadShaders?");
 			// Offset the pointer by the binding's offset
-			std::byte* dataStartingPoint = vecBuffer.data() + binding.offset;
+			std::byte* dataStartingPoint = static_cast<std::byte*>(this->m_uniformBufferMappedData) + binding.offset;
 			// Memcpy the data with sizeof(T)
-			memcpy(dataStartingPoint, &value, sizeof(T)); 
+			memcpy(dataStartingPoint, &value, valueSize);
+			this->SyncronizeMemory();
 		}
 
 		template<class T>
@@ -78,17 +77,13 @@ namespace Hush {
 			// Search for a binding with the name passed onto the func
 			const ShaderBindings& binding = this->FindBinding(name);
 
-			// Compare the binding type, and send that to the appropriate vector buffer
-			// Select the vector buffer
-			std::vector<std::byte>& vecBuffer = binding.type == ShaderBindings::EBindingType::UniformBufferMember
-				? this->m_uniformBufferData : this->m_shaderInputData;
-			if (vecBuffer.size() < 1) {
+			if (this->m_uniformBufferMappedData == nullptr) {
 				return EError::ShaderNotLoaded;
 			}
-			std::byte* dataStartingPoint = vecBuffer.data() + binding.offset;
+			std::byte* dataStartingPoint = static_cast<std::byte*>(this->m_uniformBufferMappedData) + binding.offset;
 			
-			//Important to reinterpret cast using T, because some stuff might be 16byte-aligned and we want to only get the bytes
-			//That correspond to the actual value type
+			// Important to reinterpret cast using T, because some stuff might be 16byte-aligned and we want to only get the bytes
+			// That correspond to the actual value type
 			return *reinterpret_cast<T*>(dataStartingPoint);
 		}
 
@@ -107,6 +102,8 @@ namespace Hush {
 
 		const ShaderBindings& FindBinding(const std::string_view& name);
 
+		void SyncronizeMemory();
+
 		IRenderer* m_renderer;
 		OpaqueMaterialData* m_materialData;
 
@@ -121,6 +118,6 @@ namespace Hush {
 
 		std::unique_ptr<GraphicsApiMaterialInstance> m_internalMaterial;
 		
-		void* m_uniformBufferMappedData;
+		void* m_uniformBufferMappedData = nullptr;
 	};
 }

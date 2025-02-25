@@ -37,6 +37,7 @@
 #include "VulkanFullScreenPass.hpp"
 #include <Shared/ShaderMaterial.hpp>
 #include "Vector3Math.hpp"
+#include <glm/gtx/string_cast.hpp>
 
 PFN_vkVoidFunction Hush::VulkanRenderer::CustomVulkanFunctionLoader(const char *functionName, void *userData)
 {
@@ -1079,8 +1080,18 @@ void Hush::VulkanRenderer::DrawGrid(VkCommandBuffer cmd, VkDescriptorSet globalD
     ShaderMaterial* shaderMat = this->m_gridEffect.GetMaterial();
 	glm::mat4 proj = this->m_editorCamera.GetProjectionMatrix();
 	proj[1][1] *= -1;
-	glm::mat4 viewproj = proj * this->m_editorCamera.GetProjectionMatrix();
-	shaderMat->SetProperty("viewproj", viewproj);
+	
+	glm::mat4 viewproj = proj * this->m_editorCamera.GetViewMatrix();
+
+	glm::vec3 position = this->m_editorCamera.GetPosition();
+	shaderMat->SetProperty<glm::mat4>("viewproj", viewproj);
+	shaderMat->SetProperty<glm::vec3>("pos", position);
+
+	// For debugging
+	glm::mat4 comp = shaderMat->GetProperty<glm::mat4>("viewproj").value();
+	
+	LogFormat(ELogLevel::Info, "Matrix: {}", glm::to_string(comp));
+	HUSH_ASSERT(viewproj == comp, "Oops");
     this->m_gridEffect.RecordCommands(cmd, globalDescriptor);
 }
 

@@ -1,4 +1,5 @@
 #include "ShaderMaterial.hpp"
+#include "Shared/ShaderBindings.hpp"
 #include <spirv-reflect/spirv_reflect.h>
 #include <magic_enum/magic_enum.hpp>
 
@@ -108,15 +109,12 @@ void Hush::ShaderMaterial::GenerateMaterialInstance(OpaqueDescriptorAllocator* d
 		buffer.GetAllocation(),
 		&this->m_uniformBufferMappedData);
 
-	// Copy data to GPU
-	memcpy(buffer.GetAllocationInfo().pMappedData, this->m_uniformBufferData.data(), this->m_uniformBufferData.size());
-	
 	this->m_materialData->writer.Clear();
 	constexpr size_t offset = 0;
 	this->m_materialData->writer.WriteBuffer(0, buffer.GetBuffer(), this->m_uniformBufferData.size(), offset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-	//this->m_materialPipeline->writer.WriteImage(1, resources.colorImage.imageView, resources.colorSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-	//this->m_materialPipeline->writer.WriteImage(2, resources.metalRoughImage.imageView, resources.metalRoughSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 	this->m_materialData->writer.UpdateSet(device, this->m_internalMaterial->materialSet);
+	//this->m_materialPipeline->writer.WriteImage(2, resources.metalRoughImage.imageView, resources.metalRoughSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+	//this->m_materialPipeline->writer.WriteImage(1, resources.colorImage.imageView, resources.colorSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 }
 
 Hush::OpaqueMaterialData* Hush::ShaderMaterial::GetMaterialData()
@@ -224,7 +222,7 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 			const SpvReflectBlockVariable& member = descriptor->block.members[i];
 
 			// Create a new ShaderBindings entry for each member
-			Hush::ShaderBindings memberBinding;
+			Hush::ShaderBindings memberBinding{};
 			memberBinding.bindingIndex = descriptor->binding;  // Same binding index as the block
 			memberBinding.setIndex = descriptor->set;
 			memberBinding.size = member.padded_size;
@@ -394,6 +392,9 @@ size_t Hush::ShaderMaterial::CalculateTypeSize(const SpvReflectTypeDescription* 
 	}
 
 	return cumSize; // Handle unsupported types
+}
+
+void Hush::ShaderMaterial::SyncronizeMemory() {
 }
 
 const Hush::ShaderBindings& Hush::ShaderMaterial::FindBinding(const std::string_view& name)
