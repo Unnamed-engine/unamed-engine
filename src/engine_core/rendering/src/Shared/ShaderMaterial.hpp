@@ -112,11 +112,11 @@ namespace Hush {
 		// womp, womp, malloc it is
 		std::vector<std::byte> m_shaderInputData;
 
-		std::vector<std::byte> m_uniformBufferData;
-
 		std::unordered_map<std::string, ShaderBindings> m_bindingsByName;
 
 		std::unique_ptr<GraphicsApiMaterialInstance> m_internalMaterial;
+
+		size_t m_uniformBufferSize;
 		
 		void* m_uniformBufferMappedData = nullptr;
 	};

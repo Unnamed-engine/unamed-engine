@@ -610,7 +610,7 @@ void Hush::VulkanRenderer::InitVmaAllocator()
 
 void Hush::VulkanRenderer::InitRenderables()
 {
-    //std::string structurePath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\AlphaBlendModeTest.glb";
+    //std::string structurePath = R"(C:\Users\nefes\Personal\Hush-Engine\res\sponza.glb)";
     std::string structurePath = R"(C:\Users\nefes\Personal\Hush-Engine\res\Duck.glb)";
     std::vector<std::shared_ptr<VulkanMeshNode>> nodeVector = VulkanLoader::LoadGltfMeshes(this, structurePath).value();
     for (auto& node : nodeVector)
@@ -1078,20 +1078,15 @@ void Hush::VulkanRenderer::DrawBackground(VkCommandBuffer cmd) noexcept
 void Hush::VulkanRenderer::DrawGrid(VkCommandBuffer cmd, VkDescriptorSet globalDescriptor)
 {
     ShaderMaterial* shaderMat = this->m_gridEffect.GetMaterial();
+	glm::vec3 position = this->m_editorCamera.GetPosition();
+	glm::mat4 view = this->m_editorCamera.GetViewMatrix();
 	glm::mat4 proj = this->m_editorCamera.GetProjectionMatrix();
 	proj[1][1] *= -1;
 	
-	glm::mat4 viewproj = proj * this->m_editorCamera.GetViewMatrix();
-
-	glm::vec3 position = this->m_editorCamera.GetPosition();
-	shaderMat->SetProperty<glm::mat4>("viewproj", viewproj);
-	shaderMat->SetProperty<glm::vec3>("pos", position);
-
-	// For debugging
-	glm::mat4 comp = shaderMat->GetProperty<glm::mat4>("viewproj").value();
+	shaderMat->SetProperty("pos", position);
+	shaderMat->SetProperty("proj", proj);
+	shaderMat->SetProperty("view", view);
 	
-	LogFormat(ELogLevel::Info, "Matrix: {}", glm::to_string(comp));
-	HUSH_ASSERT(viewproj == comp, "Oops");
     this->m_gridEffect.RecordCommands(cmd, globalDescriptor);
 }
 

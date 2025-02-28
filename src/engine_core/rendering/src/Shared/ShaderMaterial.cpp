@@ -1,5 +1,8 @@
 #include "ShaderMaterial.hpp"
 #include "Shared/ShaderBindings.hpp"
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <spirv-reflect/spirv_reflect.h>
 #include <magic_enum/magic_enum.hpp>
 
@@ -13,10 +16,10 @@
 #include "Vulkan/VkUtilsFactory.hpp"
 namespace Hush {
 	struct OpaqueMaterialData {
-		VkMaterialPipeline pipeline;
-		VkDescriptorSetLayout descriptorLayout;
+		VkMaterialPipeline pipeline{};
+		VkDescriptorSetLayout descriptorLayout{};
 		DescriptorWriter writer;
-		VkBufferCreateInfo uniformBufferCreateInfo;
+		VkBufferCreateInfo uniformBufferCreateInfo{};
 	};
 }
 #endif
@@ -32,13 +35,13 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 {
 	this->m_renderer = renderer;
 #ifdef HUSH_VULKAN_IMPL
-	VulkanRenderer* rendererImpl = static_cast<VulkanRenderer*>(renderer);
+	auto* rendererImpl = dynamic_cast<VulkanRenderer*>(renderer);
 	VkDevice device = rendererImpl->GetVulkanDevice();
 
 	this->m_materialData = new OpaqueMaterialData();
 	this->InitializeMaterialDataMembers();
 
-	VkShaderModule meshFragmentShader;
+	VkShaderModule meshFragmentShader = nullptr;
 	std::vector<uint32_t> spirvByteCodeBuffer;
 
 	if (!VulkanHelper::LoadShaderModule(fragmentShaderPath.string(), device, &meshFragmentShader, &spirvByteCodeBuffer)) {
@@ -49,7 +52,7 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 	std::span<uint32_t> byteCodeSpan(spirvByteCodeBuffer.begin(), spirvByteCodeBuffer.end());
 	Result<std::vector<ShaderBindings>, EError> fragBindingsResult = this->ReflectShader(byteCodeSpan);
 	
-	VkShaderModule meshVertexShader;
+	VkShaderModule meshVertexShader = nullptr;
 	if (!VulkanHelper::LoadShaderModule(vertexShaderPath.string(), device, &meshVertexShader, &spirvByteCodeBuffer)) {
 		return EError::VertexShaderNotFound;
 	}
@@ -88,7 +91,7 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 
 void Hush::ShaderMaterial::GenerateMaterialInstance(OpaqueDescriptorAllocator* descriptorAllocator)
 {
-	VulkanRenderer* rendererImpl = static_cast<VulkanRenderer*>(this->m_renderer);
+	auto* rendererImpl = dynamic_cast<VulkanRenderer*>(this->m_renderer);
 	VkDevice device = rendererImpl->GetVulkanDevice();
 	this->m_internalMaterial = std::make_unique<GraphicsApiMaterialInstance>();
 	this->m_internalMaterial->passType = EMaterialPass::MainColor;
@@ -99,19 +102,21 @@ void Hush::ShaderMaterial::GenerateMaterialInstance(OpaqueDescriptorAllocator* d
 	//Not initialized material layout here from VkLoader
 	this->m_internalMaterial->materialSet = realDescriptorAllocator->Allocate(device, this->m_materialData->descriptorLayout);
 	VulkanAllocatedBuffer buffer(
-		static_cast<uint32_t>(this->m_uniformBufferData.size()),
+		static_cast<uint32_t>(this->m_uniformBufferSize),
 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 		VMA_MEMORY_USAGE_CPU_TO_GPU, 
 		rendererImpl->GetVmaAllocator()
 	);
 
-	vmaMapMemory(rendererImpl->GetVmaAllocator(),
-		buffer.GetAllocation(),
-		&this->m_uniformBufferMappedData);
+	// Store our mapped data
+	this->m_uniformBufferMappedData = buffer.GetAllocationInfo().pMappedData;
+
+	// Zero out the data
+	memset(this->m_uniformBufferMappedData, 0, this->m_uniformBufferSize);
 
 	this->m_materialData->writer.Clear();
 	constexpr size_t offset = 0;
-	this->m_materialData->writer.WriteBuffer(0, buffer.GetBuffer(), this->m_uniformBufferData.size(), offset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	this->m_materialData->writer.WriteBuffer(0, buffer.GetBuffer(), this->m_uniformBufferSize, offset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 	this->m_materialData->writer.UpdateSet(device, this->m_internalMaterial->materialSet);
 	//this->m_materialPipeline->writer.WriteImage(2, resources.metalRoughImage.imageView, resources.metalRoughSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 	//this->m_materialPipeline->writer.WriteImage(1, resources.colorImage.imageView, resources.colorSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
@@ -124,7 +129,7 @@ Hush::OpaqueMaterialData* Hush::ShaderMaterial::GetMaterialData()
 
 const Hush::GraphicsApiMaterialInstance& Hush::ShaderMaterial::GetInternalMaterial() const
 {
-	return *this->m_internalMaterial.get();
+	return *this->m_internalMaterial;
 }
 
 Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hush::ShaderMaterial::ReflectShader(std::span<uint32_t> shaderBinary)
@@ -183,7 +188,6 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 	std::vector<SpvReflectDescriptorBinding*> descriptorBindings(descriptorCount);
 	spvReflectEnumerateDescriptorBindings(&reflectionModule, &descriptorCount, descriptorBindings.data());
 
-	size_t uniformBuffersSize = this->m_uniformBufferData.size();
 	for (const SpvReflectDescriptorBinding* descriptor : descriptorBindings) {
 
 		ShaderBindings binding;
@@ -194,7 +198,7 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 		switch (descriptor->descriptor_type) {
 		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
 			binding.type = ShaderBindings::EBindingType::UniformBuffer;
-			uniformBuffersSize += binding.size;
+			this->m_uniformBufferSize += binding.size;
 			break;
 		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:
 			binding.type = ShaderBindings::EBindingType::StorageBuffer;
@@ -210,7 +214,7 @@ Hush::Result<std::vector<Hush::ShaderBindings>, Hush::ShaderMaterial::EError> Hu
 			binding.type = ShaderBindings::EBindingType::Unknown;
 			break;
 		}
-		this->m_uniformBufferData.resize(uniformBuffersSize);
+		
 		bindings.emplace_back(binding);
 		this->m_bindingsByName.insert_or_assign(descriptor->name, binding);
 		if (descriptor->descriptor_type != SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
@@ -279,21 +283,21 @@ uint32_t Hush::ShaderMaterial::GetAPIBinding(Hush::ShaderBindings::EBindingType 
 Hush::ShaderMaterial::EError Hush::ShaderMaterial::BindShader(const std::vector<ShaderBindings>& vertBindings, const std::vector<ShaderBindings>& fragBindings)
 {
 #ifdef HUSH_VULKAN_IMPL
-	VulkanRenderer* rendererImpl = static_cast<VulkanRenderer*>(this->m_renderer);
+	auto* rendererImpl = dynamic_cast<VulkanRenderer*>(this->m_renderer);
 	VkDevice device = rendererImpl->GetVulkanDevice();
 
 	std::vector<VkPushConstantRange> pushConstants;
 	DescriptorLayoutBuilder layoutBuilder{};
 
-	for (const ShaderBindings& b : vertBindings) {
+	for (const ShaderBindings& vertexBinding : vertBindings) {
 		//TODO: Refactor this as a function
-		switch (b.type)
+		switch (vertexBinding.type)
 		{
 		case ShaderBindings::EBindingType::PushConstant:
 			pushConstants.push_back({
-				.stageFlags = b.stageFlags,
-				.offset = b.offset,
-				.size = b.size
+				.stageFlags = vertexBinding.stageFlags,
+				.offset = vertexBinding.offset,
+				.size = vertexBinding.size
 			});
 			break;
 
@@ -302,18 +306,18 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::BindShader(const std::vector<
 			//NOTE: Yes, the lack of a break here is intentional
 		case ShaderBindings::EBindingType::CombinedImageSampler:
 			//Add bindings for applicable types
-			layoutBuilder.AddBinding(b.bindingIndex, static_cast<VkDescriptorType>(this->GetAPIBinding(b.type)), b.stageFlags);
+			layoutBuilder.AddBinding(vertexBinding.bindingIndex, static_cast<VkDescriptorType>(this->GetAPIBinding(vertexBinding.type)), vertexBinding.stageFlags);
 			break;
 		}
 	}
-	for (const ShaderBindings& b : fragBindings) {
-		switch (b.type)
+	for (const ShaderBindings& fragmentBinding : fragBindings) {
+		switch (fragmentBinding.type)
 		{
 		case ShaderBindings::EBindingType::PushConstant:
 			pushConstants.push_back({
-				.stageFlags = b.stageFlags,
-				.offset = b.offset,
-				.size = b.size
+				.stageFlags = fragmentBinding.stageFlags,
+				.offset = fragmentBinding.offset,
+				.size = fragmentBinding.size
 				});
 			break;
 
@@ -322,7 +326,7 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::BindShader(const std::vector<
 			//NOTE: Yes, the lack of a break here is intentional
 		case ShaderBindings::EBindingType::CombinedImageSampler:
 			//Add bindings for applicable types
-			layoutBuilder.AddBinding(b.bindingIndex, static_cast<VkDescriptorType>(this->GetAPIBinding(b.type)), b.stageFlags);
+			layoutBuilder.AddBinding(fragmentBinding.bindingIndex, static_cast<VkDescriptorType>(this->GetAPIBinding(fragmentBinding.type)), fragmentBinding.stageFlags);
 			break;
 		}
 	}
@@ -341,7 +345,7 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::BindShader(const std::vector<
 	layoutInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstants.size());
 	layoutInfo.pPushConstantRanges = pushConstants.data();
 
-	VkPipelineLayout newLayout;
+	VkPipelineLayout newLayout = nullptr;
 	VkResult rc = vkCreatePipelineLayout(device, &layoutInfo, nullptr, &newLayout);
 	HUSH_VK_ASSERT(rc, "Failed to create pipeline layout for custom shader material!");
 
@@ -363,7 +367,7 @@ void Hush::ShaderMaterial::InitializeMaterialDataMembers()
 
 size_t Hush::ShaderMaterial::CalculateTypeSize(const SpvReflectTypeDescription* type)
 {
-	int32_t typeFlag = type->type_flags; //Narrow this from uint to int
+	auto typeFlag = static_cast<int32_t>(type->type_flags); //Narrow this from uint to int
 	constexpr SpvReflectTypeFlags fourByteFlags = SPV_REFLECT_TYPE_FLAG_BOOL | SPV_REFLECT_TYPE_FLAG_INT | SPV_REFLECT_TYPE_FLAG_FLOAT;
 	size_t cumSize = 0;
 	constexpr size_t byteLengthBits = 8;
@@ -374,21 +378,21 @@ size_t Hush::ShaderMaterial::CalculateTypeSize(const SpvReflectTypeDescription* 
 	if (Bitwise::HasFlag(typeFlag, SPV_REFLECT_TYPE_FLAG_MATRIX)) {
 		uint32_t rows = type->traits.numeric.matrix.row_count;
 		uint32_t cols = type->traits.numeric.matrix.column_count;
-		cumSize *= rows * cols;
+		cumSize *= static_cast<size_t>(rows * cols);
 	}
 	//Wrapping this in an else because matrices have more "priority" than vectors
 	//As matrix types will also contain the vector flag and will lead to duplicate calculations
 	else if (Bitwise::HasFlag(typeFlag, SPV_REFLECT_TYPE_FLAG_VECTOR)) {
-		uint32_t component_count = type->traits.numeric.vector.component_count;
-		cumSize *= component_count;
+		uint32_t componentCount = type->traits.numeric.vector.component_count;
+		cumSize *= componentCount;
 	}
 
 	if (Bitwise::HasFlag(typeFlag, SPV_REFLECT_TYPE_FLAG_STRUCT)) {
-		size_t total_size = 0;
+		size_t totalSize = 0;
 		for (uint32_t i = 0; i < type->member_count; ++i) {
-			total_size += CalculateTypeSize(&type->members[i]);
+			totalSize += CalculateTypeSize(&type->members[i]);
 		}
-		return total_size;
+		return totalSize;
 	}
 
 	return cumSize; // Handle unsupported types
