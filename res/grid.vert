@@ -24,6 +24,9 @@ const int indices[6] = int[6](0, 2, 1, 2, 0, 3);
 void main() {
     int idx = indices[gl_VertexIndex];
     vec3 vertPos = pos[idx];
+    vertPos.x += view.pos.x;
+    vertPos.z += view.pos.z;
+
     vec4 vertPos4 = vec4(vertPos, 1.0);
     gl_Position = view.viewproj * vertPos4; 
 }

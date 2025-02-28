@@ -1078,14 +1078,13 @@ void Hush::VulkanRenderer::DrawBackground(VkCommandBuffer cmd) noexcept
 void Hush::VulkanRenderer::DrawGrid(VkCommandBuffer cmd, VkDescriptorSet globalDescriptor)
 {
     ShaderMaterial* shaderMat = this->m_gridEffect.GetMaterial();
-	glm::vec3 position = this->m_editorCamera.GetPosition();
+
 	glm::mat4 view = this->m_editorCamera.GetViewMatrix();
 	glm::mat4 proj = this->m_editorCamera.GetProjectionMatrix();
 	proj[1][1] *= -1;
 	
-	shaderMat->SetProperty("pos", position);
-	shaderMat->SetProperty("proj", proj);
-	shaderMat->SetProperty("view", view);
+	shaderMat->SetProperty("pos", this->m_editorCamera.GetPosition());
+	shaderMat->SetProperty("viewproj", proj * view);
 	
     this->m_gridEffect.RecordCommands(cmd, globalDescriptor);
 }

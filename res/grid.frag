@@ -8,7 +8,6 @@ layout(location = 4) in mat4 fragView;
 layout(location = 8) in mat4 fragProj;
 layout(location = 0) out vec4 outColor;
 
-
 void main() {
-    outColor = vec4(nearPoint, 1.0);
+    outColor = vec4(0.f);
 }
