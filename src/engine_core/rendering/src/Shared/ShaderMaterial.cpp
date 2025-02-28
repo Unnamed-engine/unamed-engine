@@ -69,9 +69,9 @@ Hush::ShaderMaterial::EError Hush::ShaderMaterial::LoadShaders(IRenderer* render
 	pipelineBuilder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	pipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
 	//TODO: Make cull mode dynamic depending on the reflected shader code / inspector
-	pipelineBuilder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+	pipelineBuilder.SetCullMode(static_cast<VkCullModeFlags>(this->m_cullMode), VK_FRONT_FACE_CLOCKWISE);
 	pipelineBuilder.SetMultiSamplingNone();
-	pipelineBuilder.DisableBlending();
+	pipelineBuilder.SetAlphaBlendMode(this->m_alphaBlendMode);
 	pipelineBuilder.DisableDepthTest();
 
 	//render format
@@ -118,13 +118,27 @@ void Hush::ShaderMaterial::GenerateMaterialInstance(OpaqueDescriptorAllocator* d
 	constexpr size_t offset = 0;
 	this->m_materialData->writer.WriteBuffer(0, buffer.GetBuffer(), this->m_uniformBufferSize, offset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 	this->m_materialData->writer.UpdateSet(device, this->m_internalMaterial->materialSet);
-	//this->m_materialPipeline->writer.WriteImage(2, resources.metalRoughImage.imageView, resources.metalRoughSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-	//this->m_materialPipeline->writer.WriteImage(1, resources.colorImage.imageView, resources.colorSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 }
 
 Hush::OpaqueMaterialData* Hush::ShaderMaterial::GetMaterialData()
 {
 	return this->m_materialData;
+}
+
+Hush::EAlphaBlendMode Hush::ShaderMaterial::GetAlphaBlendMode() const noexcept {
+	return this->m_alphaBlendMode;
+}
+
+void Hush::ShaderMaterial::SetAlphaBlendMode(EAlphaBlendMode blendMode) noexcept {
+	this->m_alphaBlendMode = blendMode;
+}
+
+void Hush::ShaderMaterial::SetCullMode(ECullMode cullMode) {
+	this->m_cullMode = cullMode;	
+}
+
+Hush::ECullMode Hush::ShaderMaterial::GetCullMode() const noexcept {
+	return this->m_cullMode;
 }
 
 const Hush::GraphicsApiMaterialInstance& Hush::ShaderMaterial::GetInternalMaterial() const

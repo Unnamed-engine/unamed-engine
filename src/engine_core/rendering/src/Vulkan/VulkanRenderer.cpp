@@ -4,6 +4,7 @@
     \brief Vulkan implementation for rendering
 */
 
+#include "Shared/MaterialOptions.hpp"
 #define VMA_IMPLEMENTATION
 #define VK_NO_PROTOTYPES
 #include "VulkanRenderer.hpp"
@@ -750,15 +751,16 @@ void Hush::VulkanRenderer::InitPipelines() noexcept
     this->InitBackgroundPipelines();
     this->InitMeshPipeline();
 
-	constexpr std::string_view fragmentShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\mesh.frag.spv";
-    constexpr std::string_view vertexShaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\mesh.vert.spv";
+	constexpr std::string_view fragmentShaderPath = R"(C:\Users\nefes\Personal\Hush-Engine\res\mesh.frag.spv)";
+    constexpr std::string_view vertexShaderPath = R"(C:\Users\nefes\Personal\Hush-Engine\res\mesh.vert.spv)";
     this->m_metalRoughMaterial.BuildPipelines(this, fragmentShaderPath, vertexShaderPath);
 
 	//Just as a test, let's bind some shaders!
-	std::filesystem::path frag("C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\grid.frag.spv");
-	std::filesystem::path vert("C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\grid.vert.spv");
+	std::filesystem::path frag(R"(C:\Users\nefes\Personal\Hush-Engine\res\grid.frag.spv)");
+	std::filesystem::path vert(R"(C:\Users\nefes\Personal\Hush-Engine\res\grid.vert.spv)");
     
     auto gridMaterial = std::make_shared<ShaderMaterial>();
+    gridMaterial->SetAlphaBlendMode(EAlphaBlendMode::OneMinusSrcAlpha);
 	ShaderMaterial::EError err = gridMaterial->LoadShaders(this, frag, vert);
     this->m_gridEffect = VulkanFullScreenPass(this, gridMaterial);
     gridMaterial->GenerateMaterialInstance(&this->m_globalDescriptorAllocator);
@@ -776,7 +778,7 @@ void Hush::VulkanRenderer::InitBackgroundPipelines() noexcept
 
     // layout code
     VkShaderModule computeDrawShader = nullptr;
-    constexpr std::string_view shaderPath = "C:\\Users\\nefes\\Personal\\Hush-Engine\\res\\gradient_color.comp.spv";
+    constexpr std::string_view shaderPath = R"(C:\Users\nefes\Personal\Hush-Engine\res\gradient_color.comp.spv)";
     if (!VulkanHelper::LoadShaderModule(shaderPath, this->m_device, &computeDrawShader))
     {
         LogError("Error when building the compute shader");

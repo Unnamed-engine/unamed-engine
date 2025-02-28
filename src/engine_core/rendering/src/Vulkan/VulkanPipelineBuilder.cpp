@@ -5,6 +5,8 @@
 #include "VkUtilsFactory.hpp"
 #include <volk.h>
 
+constexpr VkColorComponentFlags RGBA_COLOR_WRITE_MASK = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
 // NOLINTNEXTLINE (Initialization is handled on the clear method)
 Hush::VulkanPipelineBuilder::VulkanPipelineBuilder(VkPipelineLayout pipelineLayout)
 {
@@ -157,8 +159,7 @@ Hush::VulkanPipelineBuilder &Hush::VulkanPipelineBuilder::SetMultiSamplingNone()
 Hush::VulkanPipelineBuilder &Hush::VulkanPipelineBuilder::DisableBlending()
 {
     // default write mask
-    this->m_colorBlendAttachment.colorWriteMask =
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    this->m_colorBlendAttachment.colorWriteMask = RGBA_COLOR_WRITE_MASK;
     // no blending
     this->m_colorBlendAttachment.blendEnable = VK_FALSE;
     return *this;
@@ -166,8 +167,7 @@ Hush::VulkanPipelineBuilder &Hush::VulkanPipelineBuilder::DisableBlending()
 
 Hush::VulkanPipelineBuilder &Hush::VulkanPipelineBuilder::EnableBlendingAdditive()
 {
-    this->m_colorBlendAttachment.colorWriteMask =
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    this->m_colorBlendAttachment.colorWriteMask = RGBA_COLOR_WRITE_MASK;
     this->m_colorBlendAttachment.blendEnable = VK_TRUE;
     this->m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
     this->m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
@@ -180,8 +180,7 @@ Hush::VulkanPipelineBuilder &Hush::VulkanPipelineBuilder::EnableBlendingAdditive
 
 Hush::VulkanPipelineBuilder &Hush::VulkanPipelineBuilder::EnableBlendingAlphaBlend()
 {
-    this->m_colorBlendAttachment.colorWriteMask =
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    this->m_colorBlendAttachment.colorWriteMask = RGBA_COLOR_WRITE_MASK;
     this->m_colorBlendAttachment.blendEnable = VK_TRUE;
     this->m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
     this->m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
@@ -189,6 +188,60 @@ Hush::VulkanPipelineBuilder &Hush::VulkanPipelineBuilder::EnableBlendingAlphaBle
     this->m_colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     this->m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     this->m_colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    return *this;
+}
+
+
+Hush::VulkanPipelineBuilder& Hush::VulkanPipelineBuilder::SetAlphaBlendMode(EAlphaBlendMode blendMode) {
+	
+	this->m_colorBlendAttachment.colorWriteMask = RGBA_COLOR_WRITE_MASK;
+    this->m_colorBlendAttachment.blendEnable = VK_TRUE;
+
+    switch (blendMode)
+    {
+        case EAlphaBlendMode::None:
+            this->m_colorBlendAttachment.blendEnable = VK_FALSE;
+            break;
+
+        case EAlphaBlendMode::OneMinusSrcAlpha:
+            this->m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            this->m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            this->m_colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            this->m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+        case EAlphaBlendMode::OneMinusDestAlpha:
+            this->m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            this->m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+            this->m_colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            this->m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+            break;
+
+        case EAlphaBlendMode::ConstAlpha:
+            this->m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_CONSTANT_ALPHA;
+            this->m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+            this->m_colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_CONSTANT_ALPHA;
+            this->m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+            break;
+
+        case EAlphaBlendMode::DestAlpha:
+            this->m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            this->m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+            this->m_colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            this->m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+            break;
+
+        case EAlphaBlendMode::SrcAlpha:
+            this->m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            this->m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            this->m_colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            this->m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+    }
+
+    this->m_colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    this->m_colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
     return *this;
 }
 

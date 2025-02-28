@@ -6,6 +6,7 @@
 #include "ShaderBindings.hpp"
 #include "Result.hpp"
 #include "Assertions.hpp"
+#include "Shared/MaterialOptions.hpp"
 
 
 class SpvReflectTypeDescription;
@@ -58,6 +59,14 @@ namespace Hush {
 
 		OpaqueMaterialData* GetMaterialData();
 
+		[[nodiscard]] EAlphaBlendMode GetAlphaBlendMode() const noexcept;
+
+		void SetAlphaBlendMode(EAlphaBlendMode blendMode) noexcept;
+
+		[[nodiscard]] ECullMode GetCullMode() const noexcept;
+		
+		void SetCullMode(ECullMode cullMode);
+		
 		template<class T>
 		inline void SetProperty(const std::string_view& name, T value) {
 			// Search for a binding with the name passed onto the func
@@ -119,5 +128,9 @@ namespace Hush {
 		size_t m_uniformBufferSize;
 		
 		void* m_uniformBufferMappedData = nullptr;
+
+		EAlphaBlendMode m_alphaBlendMode = EAlphaBlendMode::None;
+
+		ECullMode m_cullMode = ECullMode::None;
 	};
 }

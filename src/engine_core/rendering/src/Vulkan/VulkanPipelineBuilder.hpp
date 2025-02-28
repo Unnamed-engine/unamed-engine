@@ -5,6 +5,7 @@
 */
 
 #pragma once
+#include "Shared/MaterialOptions.hpp"
 #include <vector>
 #include <vulkan/vulkan.h>
 #include <string_view>
@@ -31,6 +32,7 @@ namespace Hush
         VulkanPipelineBuilder& DisableBlending();
         VulkanPipelineBuilder& EnableBlendingAdditive();
         VulkanPipelineBuilder& EnableBlendingAlphaBlend();
+        VulkanPipelineBuilder& SetAlphaBlendMode(EAlphaBlendMode blendMode);
         VulkanPipelineBuilder& DisableDepthTest();
 		VulkanPipelineBuilder& EnableDepthTest(bool depthWriteEnable, VkCompareOp op);
 
